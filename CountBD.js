@@ -17,6 +17,8 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
   const [showEvents,    setShowEvents]    = useState(false);
   const [showPickoffs,  setShowPickoffs]  = useState(false);
   const [showPrint,     setShowPrint]     = useState(false);
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
+  const [selectedHitter, setSelectedHitter] = useState("");
 
 
   // Generic multi-select toggle/clear helpers
@@ -89,9 +91,17 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
     });
   });
 
-  // Build hitter list from batOrder values seen in pitch pool
-  const seenOrders = [...new Set(pitchPool.filter(p => p.batOrder).map(p => p.batOrder))].sort((a, b) => a - b);
-  const hitterList = seenOrders.map(slot => ({
+  // Build hitter list from batOrder values seen in pitch pool PLUS lineup slots from scoped games
+  const seenOrders = [...new Set(pitchPool.filter(p => p.batOrder).map(p => p.batOrder))];
+  // Also include all lineup slots from scoped games (in case no pitches yet)
+  scopedGames.forEach(g => {
+    if (!g.lineup) return;
+    g.lineup.forEach(slot => {
+      if (slot.slot) seenOrders.push(slot.slot);
+    });
+  });
+  const uniqueOrders = [...new Set(seenOrders)].sort((a, b) => a - b);
+  const hitterList = uniqueOrders.map(slot => ({
     slot,
     name: hitterNameMap[slot]?.name || null,
     hand: hitterNameMap[slot]?.hand || "R",
@@ -163,7 +173,77 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
   const counts = [];
   for (let b = 0; b <= 3; b++) for (let s = 0; s <= 2; s++) counts.push(`${b}-${s}`);
 
-  const chipStyle = (active) => ({ padding: "6px 12px", borderRadius: 5, border: "none", background: active ? G.gold : G.sf2, color: active ? "#000" : G.tx2, fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "'Anybody',sans-serif" });
+  const chipStyle = (active) => ({ padding: "5px 10px", borderRadius: 5, border: "none", background: active ? G.gold : G.sf2, color: active ? "#000" : G.tx2, fontSize: 11, fontWeight: 800, cursor: "pointer", fontFamily: "'Anybody',sans-serif" });
+  const selStyle = { background: G.sf2, color: G.tx, border: "1px solid " + G.bd2, borderRadius: 5, padding: "5px 8px", fontSize: 11, fontFamily: "'Anybody',sans-serif", fontWeight: 700 };
+
+  // Count grid helper — clickable count cells
+  const countGrid = () => {
+    const rows = [
+      ["0-0", "0-1", "0-2"],
+      ["1-0", "1-1", "1-2"],
+      ["2-0", "2-1", "2-2"],
+      ["3-0", "3-1", "3-2"],
+    ];
+    return (
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 2 }}>
+        {rows.flat().map(c => {
+          const active = filterCounts.has(c);
+          const totalInCount = filtered.filter(p => `${p.balls}-${p.strikes}` === c).length;
+          const countData = countBreakdown[c];
+          const topPitch = countData ? Object.entries(countData).sort((a,b) => b[1]-a[1])[0] : null;
+          return (
+            <button key={c} onClick={() => toggleCount(c)}
+              style={{ padding: "6px 4px", borderRadius: 4, border: "none", background: active ? G.gold : G.sf2, color: active ? "#000" : G.tx2, cursor: "pointer", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center" }}>
+              <div style={{ fontSize: 12, fontWeight: 800, fontFamily: "'Azeret Mono',monospace" }}>{c}</div>
+              {topPitch && <div style={{ fontSize: 9, opacity: 0.8 }}>{topPitch[0]} {Math.round(topPitch[1]/totalInCount*100)}%</div>}
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // Clickable base diamond for runners filter
+  const baseDiamond = () => {
+    const pos = { second: [0.5, 0.08], third: [0.08, 0.5], first: [0.92, 0.5] };
+    const ds = 44;
+    const toggleBaseFilter = (baseKey) => {
+      const sitMap = { first: ["1", "12", "13", "123"], second: ["2", "12", "23", "123"], third: ["3", "13", "23", "123"] };
+      const keys = sitMap[baseKey];
+      if (!keys) return;
+      const hasAny = keys.some(k => filterSits.has(k));
+      if (hasAny) {
+        setFilterSits(prev => { const n = new Set(prev); keys.forEach(k => n.delete(k)); return n; });
+      } else {
+        setFilterSits(prev => { const n = new Set(prev); keys.forEach(k => n.add(k)); return n; });
+      }
+    };
+    const isOn = (baseKey) => {
+      const sitMap = { first: ["1", "12", "13", "123"], second: ["2", "12", "23", "123"], third: ["3", "13", "23", "123"] };
+      return sitMap[baseKey].some(k => filterSits.has(k));
+    };
+    return (
+      <div style={{ width: ds, height: ds, position: "relative", marginBottom: 8 }}>
+        <svg width={ds} height={ds} viewBox="0 0 100 100" style={{ position: "absolute" }}>
+          <polygon points="50,15 85,50 50,85 15,50" fill="none" stroke={G.bd2} strokeWidth={3} />
+        </svg>
+        {["second", "third", "first"].map(b => {
+          const [fx, fy] = pos[b];
+          const on = isOn(b);
+          return (
+            <div key={b} onClick={() => toggleBaseFilter(b)}
+              style={{
+                position: "absolute", left: `${fx * 100}%`, top: `${fy * 100}%`,
+                transform: "translate(-50%,-50%) rotate(45deg)",
+                width: 14, height: 14, borderRadius: 2, cursor: "pointer",
+                background: on ? G.gold : "transparent",
+                border: `2px solid ${on ? G.gold : G.bd2}`,
+              }} />
+          );
+        })}
+      </div>
+    );
+  };
 
   if (!games.length) return <div style={{ ...cd, textAlign: "center", padding: 50 }}><div style={{ fontSize: 16, fontWeight: 800, color: G.gold }}>No Data</div></div>;
 
@@ -181,190 +261,136 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
         </div>
         {total > 0 && <button onClick={() => setShowPrint(true)}
           style={{ padding: "5px 12px", background: "transparent", border: "1px solid " + G.bd2, borderRadius: 6, color: G.tx3, fontSize: 10, fontWeight: 800, cursor: "pointer", fontFamily: "'Azeret Mono',monospace", letterSpacing: 1 }}>
-          🖨 Print Report
+          Print Report
         </button>}
       </div>
       <ScopeBar scope={scope} />
 
       {section !== "baserunning" && (<>
-      {canAccess("zones", tier) && <div style={cd}>
-        <div style={cT}>Filters</div>
-        <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 10, color: G.tx3, fontWeight: 800, marginBottom: 4 }}>
-            PITCH TYPE
-            {filterTypes.size > 0 && <span style={{ marginLeft: 8, fontSize: 9, color: G.gold, cursor: "pointer", fontWeight: 700 }} onClick={clr(setFilterTypes)}>Clear ({filterTypes.size})</span>}
-          </div>
-          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-            <button onClick={clr(setFilterTypes)} style={chipStyle(filterTypes.size === 0)}>All</button>
-            {pitchTypesList.map(t => (
+      {/* ── UNIFIED CARD: Heat Map + Stats + Quick Filters ── */}
+      {canAccess("zones", tier) && <div style={{ ...cd, marginBottom: 8 }}>
+        {/* Top row: Quick filters inline */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            {/* Pitch Type buttons */}
+            {pitchTypesList.slice(0, 5).map(t => (
               <button key={t} onClick={() => toggleType(t)}
-                style={{ ...chipStyle(filterTypes.has(t)), background: filterTypes.has(t) ? gPC(t) : G.sf2, color: filterTypes.has(t) ? "#000" : gPC(t), outline: filterTypes.has(t) ? "2px solid " + gPC(t) : "none", outlineOffset: 1 }}>
+                style={{ ...chipStyle(filterTypes.has(t)), background: filterTypes.has(t) ? gPC(t) : G.sf2, color: filterTypes.has(t) ? "#000" : gPC(t), padding: "4px 8px", fontSize: 10 }}>
                 {t}
               </button>
             ))}
+            {pitchTypesList.length > 5 && (
+              <select value={filterTypes.size === 1 && !pitchTypesList.slice(0,5).includes([...filterTypes][0]) ? [...filterTypes][0] : ""}
+                onChange={e => { if (e.target.value) toggleType(e.target.value); }}
+                style={{ ...selStyle, padding: "4px 6px", fontSize: 10 }}>
+                <option value="">+</option>
+                {pitchTypesList.slice(5).map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            )}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {/* Batter side toggle */}
+            <button onClick={() => toggleSide("L")} style={{ ...chipStyle(filterSides.has("L")), padding: "4px 8px", fontSize: 10 }}>LHB</button>
+            <button onClick={() => toggleSide("R")} style={{ ...chipStyle(filterSides.has("R")), padding: "4px 8px", fontSize: 10 }}>RHB</button>
+            {/* Hitter dropdown */}
+            {hasLineup && (
+              <select value={selectedHitter} onChange={e => { const v = e.target.value; setSelectedHitter(v); if (v) setFilterHitters(new Set([parseInt(v)])); else setFilterHitters(new Set()); }}
+                style={{ ...selStyle, padding: "4px 6px", fontSize: 10, minWidth: 90 }}>
+                <option value="">All hitters</option>
+                {hitterList.map(h => <option key={h.slot} value={h.slot}>{h.label}</option>)}
+              </select>
+            )}
+            {anyFilterActive && <button onClick={clearAllFilters} style={{ background: "transparent", border: "none", color: G.tx3, fontSize: 10, fontWeight: 700, cursor: "pointer" }}>Clear</button>}
           </div>
         </div>
-        <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 10, color: G.tx3, fontWeight: 800, marginBottom: 4 }}>
-            COUNT
-            {filterCounts.size > 0 && <span style={{ marginLeft: 8, fontSize: 9, color: G.gold, cursor: "pointer", fontWeight: 700 }} onClick={clr(setFilterCounts)}>Clear ({filterCounts.size})</span>}
-            {filterCounts.size === 0 && <span style={{ marginLeft: 8, fontSize: 9, color: G.tx3, fontWeight: 400 }}>tap multiple to combine</span>}
-          </div>
-          <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
-            <button onClick={clr(setFilterCounts)} style={chipStyle(filterCounts.size === 0)}>All</button>
-            {counts.map(c => (
-              <button key={c} onClick={() => toggleCount(c)}
-                style={{ ...chipStyle(filterCounts.has(c)), outline: filterCounts.has(c) ? "2px solid " + G.gold : "none", outlineOffset: 1 }}>
-                {c}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 10, color: G.tx3, fontWeight: 800, marginBottom: 4 }}>
-            BATTER SIDE
-            {filterSides.size > 0 && <span style={{ marginLeft: 8, fontSize: 9, color: G.gold, cursor: "pointer", fontWeight: 700 }} onClick={clr(setFilterSides)}>Clear</span>}
-          </div>
-          <div style={{ display: "flex", gap: 4 }}>
-            <button onClick={clr(setFilterSides)} style={chipStyle(filterSides.size === 0)}>All</button>
-            <button onClick={() => toggleSide("L")} style={{ ...chipStyle(filterSides.has("L")), outline: filterSides.has("L") ? "2px solid " + G.gold : "none", outlineOffset: 1 }}>vs LHB</button>
-            <button onClick={() => toggleSide("R")} style={{ ...chipStyle(filterSides.has("R")), outline: filterSides.has("R") ? "2px solid " + G.gold : "none", outlineOffset: 1 }}>vs RHB</button>
-          </div>
-        </div>
-        {hasLineup && (
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 10, color: G.tx3, fontWeight: 800, marginBottom: 4 }}>
-              HITTER
-              {filterHitters.size > 0 && <span style={{ marginLeft: 8, fontSize: 9, color: G.gold, cursor: "pointer", fontWeight: 700 }} onClick={clr(setFilterHitters)}>Clear ({filterHitters.size})</span>}
-            </div>
-            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-              <button onClick={clr(setFilterHitters)} style={chipStyle(filterHitters.size === 0)}>All</button>
-              {hitterList.map(h => {
-                const active = filterHitters.has(h.slot);
-                return (
-                  <button key={h.slot} onClick={() => toggleHitter(h.slot)}
-                    style={{ ...chipStyle(active), outline: active ? "2px solid " + G.gold : "none", outlineOffset: 1 }}>
-                    <span style={{ fontSize: 9, opacity: 0.6, marginRight: 3 }}>#{h.slot}</span>
-                    {h.name || ""}
-                    <span style={{ fontSize: 9, opacity: 0.6, marginLeft: 3 }}>({h.hand})</span>
-                  </button>
-                );
+
+        {/* Main grid: Zone map | Count grid | Pitch mix */}
+        <div style={{ display: "grid", gridTemplateColumns: "auto 1fr 1fr", gap: 16, alignItems: "start" }}>
+          {/* Zone heat map */}
+          <div>
+            <div style={{ display: "inline-grid", gridTemplateColumns: "20px repeat(3, 36px) 20px", gridTemplateRows: "20px repeat(3, 36px) 20px 20px", gap: 2 }}>
+              {STRIKE_ZONES.map(z => {
+                const count = zoneCounts[z.k] || 0;
+                const pct = total > 0 ? ((count / total) * 100).toFixed(0) : 0;
+                return (<div key={z.k} style={{ gridRow: z.r + 1, gridColumn: z.c + 1, background: zoneColor(count) !== "transparent" ? zoneColor(count) : G.sf2, color: count > 0 ? "#fff" : G.tx3, borderRadius: 3, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid " + G.bd }}>
+                  {count > 0 ? <span style={{ fontSize: 11, fontWeight: 800, fontFamily: "'Azeret Mono',monospace" }}>{pct}%</span> : <span style={{ fontSize: 8, color: G.tx3 }}>-</span>}
+                </div>);
+              })}
+              {BALL_ZONES.map(z => {
+                const count = zoneCounts[z.k] || 0;
+                return (<div key={z.k} style={{ gridRow: `${z.r + 1} / span ${z.rowSpan}`, gridColumn: `${z.c + 1} / span ${z.colSpan}`, background: count > 0 ? zoneColor(count) : "#0a0a0a", color: G.tx3, borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed " + G.bd2, fontSize: 7 }}>
+                  {z.k === "dirt" ? "DIRT" : z.rL}
+                </div>);
               })}
             </div>
           </div>
-        )}
-        <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 10, color: G.tx3, fontWeight: 800, marginBottom: 4 }}>
-            RUNNERS
-            {filterSits.size > 0 && <span style={{ marginLeft: 8, fontSize: 9, color: G.gold, cursor: "pointer", fontWeight: 700 }} onClick={clr(setFilterSits)}>Clear ({filterSits.size})</span>}
-          </div>
-          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-            <button onClick={clr(setFilterSits)} style={{ ...chipStyle(filterSits.size === 0), fontSize: 11, padding: "5px 10px" }}>All</button>
-            {[
-              { key: "empty", label: "Empty" }, { key: "1", label: "1B" },
-              { key: "2", label: "2B" }, { key: "3", label: "3B" },
-              { key: "12", label: "1B+2B" }, { key: "13", label: "1B+3B" },
-              { key: "23", label: "2B+3B" }, { key: "123", label: "Loaded" },
-            ].map(sit => (
-              <button key={sit.key} onClick={() => toggleSit(sit.key)}
-                style={{ ...chipStyle(filterSits.has(sit.key)), fontSize: 11, padding: "5px 10px", outline: filterSits.has(sit.key) ? "2px solid " + G.gold : "none", outlineOffset: 1 }}>
-                {sit.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 10, color: G.tx3, fontWeight: 800, marginBottom: 4 }}>
-            OUTS
-            {filterOuts.size > 0 && <span style={{ marginLeft: 8, fontSize: 9, color: G.gold, cursor: "pointer", fontWeight: 700 }} onClick={clr(setFilterOuts)}>Clear ({filterOuts.size})</span>}
-          </div>
-          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-            <button onClick={clr(setFilterOuts)} style={{ ...chipStyle(filterOuts.size === 0), fontSize: 11, padding: "5px 10px" }}>All</button>
-            {[{ key: "0", label: "0 Outs" }, { key: "1", label: "1 Out" }, { key: "2", label: "2 Outs" }].map(o => (
-              <button key={o.key} onClick={() => toggleOut(o.key)}
-                style={{ ...chipStyle(filterOuts.has(o.key)), fontSize: 11, padding: "5px 10px", outline: filterOuts.has(o.key) ? "2px solid " + G.gold : "none", outlineOffset: 1 }}>
-                {o.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 10, color: G.tx3, fontWeight: 800, marginBottom: 4 }}>
-            TIMES THROUGH ORDER
-            {filterTTOs.size > 0 && <span style={{ marginLeft: 8, fontSize: 9, color: G.gold, cursor: "pointer", fontWeight: 700 }} onClick={clr(setFilterTTOs)}>Clear ({filterTTOs.size})</span>}
-          </div>
-          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-            <button onClick={clr(setFilterTTOs)} style={{ ...chipStyle(filterTTOs.size === 0), fontSize: 11, padding: "5px 10px" }}>All</button>
-            {[{ key: "1", label: "1st Time" }, { key: "2", label: "2nd Time" }, { key: "3", label: "3rd Time" }, { key: "4", label: "4th Time" }].map(t => (
-              <button key={t.key} onClick={() => toggleTTO(t.key)}
-                style={{ ...chipStyle(filterTTOs.has(t.key)), fontSize: 11, padding: "5px 10px", outline: filterTTOs.has(t.key) ? "2px solid " + G.gold : "none", outlineOffset: 1 }}>
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 10, color: G.tx3, fontWeight: 800, marginBottom: 6 }}>
-            RESULT
-            {filterResults.size > 0 && <span style={{ marginLeft: 8, fontSize: 9, color: G.gold, cursor: "pointer", fontWeight: 700 }} onClick={clr(setFilterResults)}>Clear ({filterResults.size})</span>}
-            {filterResults.size === 0 && <span style={{ marginLeft: 8, fontSize: 9, color: G.tx3, fontWeight: 400 }}>tap multiple to combine</span>}
-          </div>
-          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 6 }}>
-            <div style={{ fontSize: 9, color: G.tx3, fontWeight: 700, width: "100%", letterSpacing: 1, textTransform: "uppercase", marginBottom: 2 }}>Strikeouts</div>
-            {[{ key: "K", label: "K (Swinging)" }, { key: "Kc", label: "Kc (Looking)" }].map(r => (
-              <button key={r.key} onClick={() => toggleResult(r.key)}
-                style={{ ...chipStyle(filterResults.has(r.key)), fontSize: 11, padding: "5px 12px", outline: filterResults.has(r.key) ? "2px solid " + G.gold : "none", outlineOffset: 1 }}>
-                {r.label}
-              </button>
-            ))}
-          </div>
-          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 6 }}>
-            <div style={{ fontSize: 9, color: G.tx3, fontWeight: 700, width: "100%", letterSpacing: 1, textTransform: "uppercase", marginBottom: 2 }}>Contact Outs</div>
-            {[{ key: "go", label: "Groundout" }, { key: "fo", label: "Flyout" }, { key: "po", label: "Popup" }, { key: "lo", label: "Lineout" }, { key: "gdp", label: "GDP" }].map(r => (
-              <button key={r.key} onClick={() => toggleResult(r.key)}
-                style={{ ...chipStyle(filterResults.has(r.key)), fontSize: 11, padding: "5px 12px", outline: filterResults.has(r.key) ? "2px solid " + G.gold : "none", outlineOffset: 1 }}>
-                {r.label}
-              </button>
-            ))}
-          </div>
-          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 6 }}>
-            <div style={{ fontSize: 9, color: G.tx3, fontWeight: 700, width: "100%", letterSpacing: 1, textTransform: "uppercase", marginBottom: 2 }}>Hits</div>
-            {[{ key: "1b", label: "Single (1B)" }, { key: "2b", label: "Double (2B)" }, { key: "3b", label: "Triple (3B)" }, { key: "hr", label: "Home Run" }].map(r => (
-              <button key={r.key} onClick={() => toggleResult(r.key)}
-                style={{ ...chipStyle(filterResults.has(r.key)), fontSize: 11, padding: "5px 12px", outline: filterResults.has(r.key) ? "2px solid " + G.gold : "none", outlineOffset: 1 }}>
-                {r.label}
-              </button>
-            ))}
-          </div>
-          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-            <div style={{ fontSize: 9, color: G.tx3, fontWeight: 700, width: "100%", letterSpacing: 1, textTransform: "uppercase", marginBottom: 2 }}>Other</div>
-            {[{ key: "hbp", label: "Hit By Pitch" }].map(r => (
-              <button key={r.key} onClick={() => toggleResult(r.key)}
-                style={{ ...chipStyle(filterResults.has(r.key)), fontSize: 11, padding: "5px 12px", outline: filterResults.has(r.key) ? "2px solid " + G.gold : "none", outlineOffset: 1 }}>
-                {r.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        {anyFilterActive && (
-          <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid " + G.bd }}>
-            <button onClick={clearAllFilters}
-              style={{ padding: "8px 18px", borderRadius: 6, border: "1px solid " + G.gold + "66", background: "transparent", color: G.gold, fontSize: 11, fontWeight: 800, cursor: "pointer", fontFamily: "'Anybody',sans-serif", letterSpacing: 1 }}>
-              ✕ Clear All Filters
-            </button>
-          </div>
-        )}
-      </div>}
 
-      <div style={{ ...cd, display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
-        <div>
-          <div style={{ fontSize: 28, fontWeight: 800, fontFamily: "'Azeret Mono',monospace", color: G.gold }}>{total}</div>
-          <div style={{ fontSize: 9, color: G.tx3, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Pitches</div>
+          {/* Count grid (clickable) */}
+          <div>
+            <div style={{ fontSize: 9, color: G.tx3, fontWeight: 700, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>Count — tap to filter</div>
+            {countGrid()}
+          </div>
+
+          {/* Pitch mix summary */}
+          <div>
+            <div style={{ fontSize: 9, color: G.tx3, fontWeight: 700, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>Pitch Mix</div>
+            <div style={{ fontSize: 28, fontWeight: 800, fontFamily: "'Azeret Mono',monospace", color: G.gold, marginBottom: 6 }}>{total}<span style={{ fontSize: 12, color: G.tx3, marginLeft: 6 }}>pitches</span></div>
+            {typeBD.slice(0, 4).map(d => (
+              <div key={d.type} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                <div style={{ width: 24, fontSize: 11, fontWeight: 800, color: gPC(d.type), fontFamily: "'Azeret Mono',monospace" }}>{d.type}</div>
+                <div style={{ flex: 1, height: 8, background: G.bd, borderRadius: 2, overflow: "hidden" }}>
+                  <div style={{ width: d.pct + "%", height: "100%", background: gPC(d.type), borderRadius: 2 }} />
+                </div>
+                <div style={{ width: 30, fontSize: 10, color: G.tx3, textAlign: "right" }}>{d.pct}%</div>
+              </div>
+            ))}
+          </div>
         </div>
-        {typeBD.length > 0 && (<div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {typeBD.map(d => (<div key={d.type} style={{ textAlign: "center" }}><div style={{ fontSize: 16, fontWeight: 800, fontFamily: "'Azeret Mono',monospace", color: gPC(d.type) }}>{d.pct}%</div><div style={{ fontSize: 10, color: G.tx3, fontWeight: 700 }}>{d.type} ({d.count})</div></div>))}
-        </div>)}
-      </div>
+
+        {/* More filters row */}
+        <div style={{ marginTop: 12, borderTop: "1px solid " + G.bd, paddingTop: 10 }}>
+          <button onClick={() => setShowMoreFilters(s => !s)} style={{ background: "transparent", border: "none", color: G.tx3, fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
+            {showMoreFilters ? "Less filters" : "More filters (runners, outs, TTO, results)"}
+          </button>
+          {showMoreFilters && (
+            <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 9, color: G.tx3, fontWeight: 700, marginBottom: 4 }}>Runners</div>
+                {baseDiamond()}
+              </div>
+              <div>
+                <div style={{ fontSize: 9, color: G.tx3, fontWeight: 700, marginBottom: 4 }}>Outs</div>
+                <div style={{ display: "flex", gap: 3 }}>
+                  {["0", "1", "2"].map(o => (
+                    <button key={o} onClick={() => toggleOut(o)} style={{ ...chipStyle(filterOuts.has(o)), padding: "4px 10px", fontSize: 10 }}>{o} out{o !== "1" ? "s" : ""}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 9, color: G.tx3, fontWeight: 700, marginBottom: 4 }}>TTO</div>
+                <div style={{ display: "flex", gap: 3 }}>
+                  {["1", "2", "3"].map(t => (
+                    <button key={t} onClick={() => toggleTTO(t)} style={{ ...chipStyle(filterTTOs.has(t)), padding: "4px 10px", fontSize: 10 }}>{t}x</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 9, color: G.tx3, fontWeight: 700, marginBottom: 4 }}>Result</div>
+                <select value="" onChange={e => { if (e.target.value) toggleResult(e.target.value); }} style={{ ...selStyle, padding: "4px 6px", fontSize: 10 }}>
+                  <option value="">Filter by result</option>
+                  <option value="K">Strikeout (swinging)</option>
+                  <option value="Kc">Strikeout (looking)</option>
+                  <option value="go">Groundout</option>
+                  <option value="fo">Flyout</option>
+                  <option value="hr">Home run</option>
+                  <option value="1b">Single</option>
+                  <option value="hbp">HBP</option>
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>}
 
       {showPrint && (
         <PrintReport
@@ -395,64 +421,8 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
         />
       )}
 
-      {canAccess("zones", tier) ? <div style={cd}>
-        <div style={cT}>Zone Heat Map {filterTypes.size > 0 ? "— " + Array.from(filterTypes).join("+") : ""}{filterCounts.size > 0 ? " @ " + Array.from(filterCounts).join("+") : ""}{filterSits.size > 0 ? " — " + Array.from(filterSits).join("+") : ""}</div>
-        <div style={{ display: "flex", justifyContent: "center" }}>
-          <div style={{ display: "inline-grid", gridTemplateColumns: "28px repeat(3,44px) 28px", gridTemplateRows: "28px repeat(3,44px) 28px 28px", gap: 2 }}>
-            {STRIKE_ZONES.map(z => {
-              const count = zoneCounts[z.k] || 0;
-              const pct = total > 0 ? ((count / total) * 100).toFixed(0) : 0;
-              return (<div key={z.k} style={{ gridRow: z.r + 1, gridColumn: z.c + 1, background: zoneColor(count) !== "transparent" ? zoneColor(count) : G.sf2, color: count > 0 ? "#fff" : G.tx3, borderRadius: 3, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", border: "2px solid " + G.bd, textAlign: "center" }}>
-                <div style={{ fontSize: count > 0 ? 16 : 10, fontWeight: 800, fontFamily: "'Azeret Mono',monospace" }}>{count > 0 ? pct + "%" : "-"}</div>
-                {count > 0 && <div style={{ fontSize: 7, opacity: 0.7 }}>{count}</div>}
-              </div>);
-            })}
-            {BALL_ZONES.map(z => {
-              const count = zoneCounts[z.k] || 0;
-              const pct = total > 0 ? ((count / total) * 100).toFixed(0) : 0;
-              return (<div key={z.k} style={{ gridRow: `${z.r + 1} / span ${z.rowSpan}`, gridColumn: `${z.c + 1} / span ${z.colSpan}`, background: zoneColor(count) !== "transparent" ? zoneColor(count) : "#0d0d0d", color: count > 0 ? "#fff" : G.tx3, borderRadius: 3, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", border: "1px dashed " + G.bd2, textAlign: "center" }}>
-                {count > 0 ? (<><div style={{ fontSize: 13, fontWeight: 800, fontFamily: "'Azeret Mono',monospace" }}>{pct}%</div><div style={{ fontSize: 7, opacity: 0.7 }}>{count}</div></>) : <div style={{ fontSize: 7 }}>{z.k === "dirt" ? "DIRT" : z.rL}</div>}
-              </div>);
-            })}
-          </div>
-        </div>
-        <div style={{ display: "flex", justifyContent: "center", gap: 16, marginTop: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 14, height: 14, borderRadius: 3, background: "rgba(255,50,50,0.5)" }} /><span style={{ fontSize: 10, color: G.tx3, fontWeight: 700 }}>Hot</span></div>
-          <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 14, height: 14, borderRadius: 3, background: "rgba(255,180,0,0.45)" }} /><span style={{ fontSize: 10, color: G.tx3, fontWeight: 700 }}>Medium</span></div>
-          <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 14, height: 14, borderRadius: 3, background: "rgba(50,130,255,0.35)" }} /><span style={{ fontSize: 10, color: G.tx3, fontWeight: 700 }}>Cold</span></div>
-        </div>
-      </div> : (
-        <div style={{ ...cd, textAlign: "center", padding: "20px 12px", border: "1px solid " + G.bd }}>
-          <div style={{ fontSize: 12, fontWeight: 800, color: G.gold, marginBottom: 3 }}>🔒 Zone Heat Map</div>
-          <div style={{ fontSize: 11, color: G.tx3, marginBottom: 6 }}>Upgrade to Pro to see pitch location heat maps and advanced filters.</div>
-          <a href="mailto:coach@armsight.app" style={{ color: G.gold, fontSize: 11, fontWeight: 700, textDecoration: "none" }}>Contact us to upgrade →</a>
-        </div>
-      )}
-
-      {canAccess("zones", tier) && (() => {
-        const dp = [];
-        scopedGames.forEach(g => g.pitches.forEach(p => { if (!EVENTS.has(p.type) && pitcherSelected(p, g)) dp.push({ p, pts: g.pitchTypes || [] }); }));
-        return dp.length ? <DiscBoard pool={dp} /> : null;
-      })()}
-      <div style={cd}>
-        <div style={cT}>Count Breakdown</div>
-        {counts.map(c => {
-          const data = countBreakdown[c];
-          if (!data) return null;
-          const tot = Object.values(data).reduce((a, b) => a + b, 0);
-          const bd = Object.entries(data).map(([t, n]) => ({ type: t, count: n, pct: +((n / tot) * 100).toFixed(0) })).sort((a, b) => b.pct - a.pct);
-          return (<div key={c} style={{ marginBottom: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-              <span style={{ fontSize: 18, fontWeight: 800, fontFamily: "'Azeret Mono',monospace", color: G.gold }}>{c}</span>
-              <span style={{ fontSize: 10, color: G.tx3, fontWeight: 700 }}>{tot} pitches</span>
-            </div>
-            <Bar data={bd} />
-          </div>);
-        })}
-      </div>
-
+      {/* Ball/Strike totals */}
       {(() => {
-        // Ball / Strike totals — respects all active filters
         let strikes = 0, balls = 0, unknown = 0;
         filtered.forEach(p => {
           const r = inferBallStrike(p);
@@ -465,33 +435,29 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
         const sPct = Math.round((strikes / bsTotal) * 100);
         const bPct = Math.round((balls / bsTotal) * 100);
         return (
-          <div style={cd}>
-            <div style={cT}>Ball / Strike Totals{filterTypes.size > 0 ? " — " + Array.from(filterTypes).join("+") : ""}{filterSits.size > 0 ? " — " + Array.from(filterSits).join("+") : ""}{filterHitters.size > 0 ? " — #" + Array.from(filterHitters).join("+#") : ""}</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {[
-                { label: "Strikes", count: strikes, pct: sPct, color: G.gold },
-                { label: "Balls",   count: balls,   pct: bPct, color: G.blu },
-              ].map(row => (
-                <div key={row.label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ width: 62, fontSize: 12, fontWeight: 800, color: row.color, textAlign: "right", fontFamily: "'Azeret Mono',monospace" }}>{row.label}</div>
-                  <div style={{ flex: 1, height: 28, background: G.sf2, borderRadius: 4, overflow: "hidden", position: "relative" }}>
-                    <div style={{ width: row.pct + "%", height: "100%", background: row.color + "99", borderRadius: 4, transition: "width 0.4s" }} />
-                    <span style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", fontSize: 12, fontWeight: 800, fontFamily: "'Azeret Mono',monospace", color: "#fff" }}>{row.pct}%</span>
-                  </div>
-                  <div style={{ width: 28, fontSize: 12, fontFamily: "'Azeret Mono',monospace", color: G.tx3, fontWeight: 700, textAlign: "right" }}>{row.count}</div>
-                </div>
-              ))}
-              {unknown > 0 && <div style={{ fontSize: 10, color: G.tx3, fontStyle: "italic" }}>{unknown} pitch{unknown !== 1 ? "es" : ""} with no result recorded not included.</div>}
+          <div style={{ ...cd, display: "flex", gap: 20, alignItems: "center", padding: 12 }}>
+            <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 22, fontWeight: 800, fontFamily: "'Azeret Mono',monospace", color: G.gold }}>{sPct}%</span>
+              <span style={{ fontSize: 11, color: G.tx3 }}>Strikes ({strikes})</span>
+            </div>
+            <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 22, fontWeight: 800, fontFamily: "'Azeret Mono',monospace", color: G.blu }}>{bPct}%</span>
+              <span style={{ fontSize: 11, color: G.tx3 }}>Balls ({balls})</span>
             </div>
           </div>
         );
       })()}
 
+      {/* Plate Discipline */}
+      {canAccess("zones", tier) && (() => {
+        const dp = [];
+        scopedGames.forEach(g => g.pitches.forEach(p => { if (!EVENTS.has(p.type) && pitcherSelected(p, g)) dp.push({ p, pts: g.pitchTypes || [] }); }));
+        return dp.length ? <DiscBoard pool={dp} /> : null;
+      })()}
+
+      {/* Pitch Sequences */}
       {canAccess("zones", tier) ? (() => {
-        // Sequence section — filtered by active hitter or shows aggregate
-        const seqSource = filterHitters.size === 1
-          ? allPitches.filter(p => filterHitters.has(p.batOrder))
-          : allPitches;
+        const seqSource = filterHitters.size === 1 ? allPitches.filter(p => filterHitters.has(p.batOrder)) : allPitches;
         if (seqSource.length < 3) return null;
 
         const seqMap = {};
@@ -505,56 +471,33 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
         const entries = Object.entries(seqMap).filter(([, nexts]) => Object.values(nexts).reduce((a,b)=>a+b,0) >= 2);
         if (!entries.length) return null;
 
-        const hitterLabel = filterHitters.size > 0
-          ? (hitterList.find(h => filterHitters.has(h.slot))?.label || "Selected Hitter")
-          : "All Hitters";
-
-        const confidence = seqSource.length >= 20 ? "Strong Pattern" : seqSource.length >= 10 ? "Pattern" : "Early Look";
-        const confColor = seqSource.length >= 20 ? G.gold : seqSource.length >= 10 ? G.grn : G.tx3;
+        const hitterLabel = filterHitters.size > 0 ? (hitterList.find(h => filterHitters.has(h.slot))?.label || "Selected Hitter") : "All";
 
         return (
           <div style={cd}>
-            <div style={cT}>Pitch Sequences — {hitterLabel}</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-              <span style={{ fontSize: 10, color: confColor, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase" }}>{confidence}</span>
-              <span style={{ fontSize: 10, color: G.tx3 }}>— {seqSource.length} pitches</span>
-            </div>
-            {entries.sort((a, b) => Object.values(b[1]).reduce((x,y)=>x+y,0) - Object.values(a[1]).reduce((x,y)=>x+y,0)).map(([prevType, nexts]) => {
-              const total = Object.values(nexts).reduce((a,b)=>a+b,0);
-              const sorted = Object.entries(nexts).sort((a,b)=>b[1]-a[1]);
-              return (
-                <div key={prevType} style={{ marginBottom: 12 }}>
-                  <div style={{ fontSize: 11, color: G.tx3, fontWeight: 800, marginBottom: 6 }}>
-                    After <span style={{ color: gPC(prevType), fontFamily: "'Azeret Mono',monospace" }}>{prevType}</span>
-                    <span style={{ color: G.tx3, fontWeight: 400, marginLeft: 6 }}>({total} obs)</span>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                    {sorted.map(([nextType, count]) => {
-                      const pct = Math.round((count / total) * 100);
-                      return (
-                        <div key={nextType} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <div style={{ width: 36, fontSize: 12, fontWeight: 800, fontFamily: "'Azeret Mono',monospace", color: gPC(nextType), textAlign: "right" }}>{nextType}</div>
-                          <div style={{ flex: 1, height: 22, background: G.sf2, borderRadius: 3, overflow: "hidden", position: "relative" }}>
-                            <div style={{ width: pct + "%", height: "100%", background: gPC(nextType) + "88", borderRadius: 3 }} />
-                            <span style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", fontSize: 11, fontWeight: 800, fontFamily: "'Azeret Mono',monospace", color: "#fff" }}>{pct}%</span>
-                          </div>
-                          <div style={{ width: 20, fontSize: 11, fontFamily: "'Azeret Mono',monospace", color: G.tx3, textAlign: "right" }}>{count}</div>
-                        </div>
-                      );
+            <div style={cT}>After Pitch... — {hitterLabel}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
+              {entries.sort((a, b) => Object.values(b[1]).reduce((x,y)=>x+y,0) - Object.values(a[1]).reduce((x,y)=>x+y,0)).slice(0, 4).map(([prevType, nexts]) => {
+                const tot = Object.values(nexts).reduce((a,b)=>a+b,0);
+                const sorted = Object.entries(nexts).sort((a,b)=>b[1]-a[1]).slice(0, 3);
+                return (
+                  <div key={prevType} style={{ background: G.sf2, borderRadius: 6, padding: 8 }}>
+                    <div style={{ fontSize: 10, color: gPC(prevType), fontWeight: 800, marginBottom: 4, fontFamily: "'Azeret Mono',monospace" }}>{prevType} ({tot})</div>
+                    {sorted.map(([nt, nc]) => {
+                      const pct = Math.round((nc/tot)*100);
+                      return <div key={nt} style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
+                        <span style={{ fontSize: 10, color: gPC(nt), fontFamily: "'Azeret Mono',monospace", width: 20 }}>{nt}</span>
+                        <div style={{ flex: 1, height: 4, background: G.bd, borderRadius: 2, overflow: "hidden" }}><div style={{ width: pct + "%", height: "100%", background: gPC(nt) }} /></div>
+                        <span style={{ fontSize: 9, color: G.tx3 }}>{pct}%</span>
+                      </div>;
                     })}
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         );
-      })() : (
-        <div style={{ ...cd, textAlign: "center", padding: "20px 12px", border: "1px solid " + G.bd }}>
-          <div style={{ fontSize: 12, fontWeight: 800, color: G.gold, marginBottom: 3 }}>🔒 Pitch Sequences</div>
-          <div style={{ fontSize: 11, color: G.tx3, marginBottom: 6 }}>Upgrade to Pro to unlock pitch sequencing analysis.</div>
-          <a href="mailto:coach@armsight.app" style={{ color: G.gold, fontSize: 11, fontWeight: 700, textDecoration: "none" }}>Contact us to upgrade →</a>
-        </div>
-      )}
+      })() : null}
       {/* ── EVENTS SECTION — SB, CS, WP, PB preceded by which pitch ── */}
       </>)}
       {section !== "pitching" && (<>
@@ -566,7 +509,7 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
               <div style={{ ...cd, textAlign: "center", padding: 24 }}>
                 <div style={{ fontSize: 13, color: G.tx3, marginBottom: 8 }}>No pitcher read data yet.</div>
                 <div style={{ fontSize: 11, color: G.tx3, lineHeight: 1.7 }}>
-                  During a game with a runner on 1B or 2B, tap <span style={{ color: G.gold, fontWeight: 800 }}>👁 Read</span> on the Chart tab to log pitcher tendencies. Data will appear here automatically.
+                  During a game with a runner on 1B or 2B, tap <span style={{ color: G.gold, fontWeight: 800 }}>Read</span> on the Chart tab to log pitcher tendencies. Data will appear here automatically.
                 </div>
               </div>
             );
@@ -590,7 +533,7 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
           return (
             <div style={{ ...cd, marginBottom: 8 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                <div style={{ fontSize: 10, color: G.tx3, fontWeight: 800, letterSpacing: 1 }}>FILTER <span style={{ color: G.tx3, fontWeight: 400, fontSize: 9 }}>· tap multiple to narrow</span></div>
+                <div style={{ fontSize: 10, color: G.tx3, fontWeight: 800, letterSpacing: 1 }}>FILTER <span style={{ color: G.tx3, fontWeight: 400, fontSize: 9 }}>tap multiple to narrow</span></div>
                 {active && <span onClick={() => { setFilterEvents(new Set()); setFilterBases(new Set()); setFilterCounts(new Set()); setFilterOuts(new Set()); }} style={{ fontSize: 9, color: G.gold, cursor: "pointer", fontWeight: 700 }}>Clear all</span>}
               </div>
               {row("Event", <>
@@ -643,7 +586,7 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
 
         return eventData.length === 0 ? null : (
           <div style={cd}>
-            <div style={cT}>Events <span style={{ color: G.tx3, fontWeight: 400, fontSize: 11 }}>· on the preceding pitch</span></div>
+            <div style={cT}>Events <span style={{ color: G.tx3, fontWeight: 400, fontSize: 11 }}>on the preceding pitch</span></div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginTop: 12 }}>
               {eventData.map(({ evType, label, color, total: evTotal, typeMix }) => (
                 <div key={evType} style={{ background: G.sf2, borderRadius: 8, padding: 12, border: "1px solid " + color + "33" }}>
@@ -666,7 +609,7 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
         );
       })()}
 
-      {/* ── PICKOFFS SECTION — attempts by count and base, with safe/out/error ── */}
+      {/* Pickoffs */}
       {(() => {
         const PK_TYPES = { "PKO": true, "PK": true, "PK-E": true };
         const pks = rawPool.filter(p => PK_TYPES[p.type] && !p._pg);
@@ -732,9 +675,9 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
 
         return pks.length === 0 ? null : !canAccess("pickoffs", tier) ? (
           <div style={{ ...cd, textAlign: "center", padding: "20px 12px", border: "1px solid " + G.bd }}>
-            <div style={{ fontSize: 12, fontWeight: 800, color: G.gold, marginBottom: 3 }}>🔒 Pickoffs</div>
+            <div style={{ fontSize: 12, fontWeight: 800, color: G.gold, marginBottom: 3 }}>Pickoffs</div>
             <div style={{ fontSize: 11, color: G.tx3, marginBottom: 6 }}>Upgrade to Pro to unlock pickoff tendencies.</div>
-            <a href="mailto:coach@armsight.app" style={{ color: G.gold, fontSize: 11, fontWeight: 700, textDecoration: "none" }}>Contact us to upgrade →</a>
+            <a href="mailto:coach@armsight.app" style={{ color: G.gold, fontSize: 11, fontWeight: 700, textDecoration: "none" }}>Contact us to upgrade</a>
           </div>
         ) : (
           <div style={cd}>
@@ -756,14 +699,14 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
         );
       })()}
 
-      {/* ── PITCHER READS — collapsible group (2B + 1B) ── */}
+      {/* Pitcher Reads */}
       {scopedGames.some(g => g.pitches.some(p => scope.inScope(p, g) && p.brRead && (p.brRead.looks2B != null || p.brRead.move2B || p.brRead.move1B || p.brRead.step1B || p.brRead.handPos1B))) && (
         <div onClick={() => setShowReads(s => !s)} style={{ ...cd, display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", marginBottom: 8, borderLeft: "3px solid " + G.gold }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: G.gold, letterSpacing: 0.5 }}>👁 Pitcher Reads</div>
-          <span style={{ fontSize: 11, color: G.tx3, fontFamily: "'Azeret Mono',monospace" }}>{showReads ? "▲ hide" : "▼ show"}</span>
+          <div style={{ fontSize: 13, fontWeight: 800, color: G.gold, letterSpacing: 0.5 }}>Pitcher Reads</div>
+          <span style={{ fontSize: 11, color: G.tx3, fontFamily: "'Azeret Mono',monospace" }}>{showReads ? "hide" : "show"}</span>
         </div>
       )}
-      {/* ── 2B LOOK COUNT CARD ── */}
+      {/* 2B Look Count */}
       {(() => {
         if (!showReads) return null;
         const brPool = scopedGames.flatMap(g => g.pitches.filter(p => p.brRead && scope.inScope(p, g)));
@@ -778,19 +721,19 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
         if (filterOuts.size > 0) move2BRows = move2BRows.filter(p => filterOuts.has(String(p.outs)));
         const freq = { 0: 0, 1: 0, 2: 0, 3: 0 };
         rows.forEach(p => { const l = Math.min(p.brRead.looks2B, 3); freq[l]++; });
-        const total = rows.length;
+        const t = rows.length;
         const labels = { 0: "0 Looks", 1: "1 Look", 2: "2 Looks", 3: "3+" };
         const move2BFreq = { inside: 0, spin: 0 };
         move2BRows.forEach(p => { if (move2BFreq[p.brRead.move2B] !== undefined) move2BFreq[p.brRead.move2B]++; });
         return (
           <div style={cd}>
             <div style={cT}>2B — Pitcher Read</div>
-            {total > 0 && (<>
-              <div style={{ fontSize: 9, color: G.tx3, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", marginBottom: 6, marginTop: 10 }}>Look Count ({total})</div>
+            {t > 0 && (<>
+              <div style={{ fontSize: 9, color: G.tx3, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", marginBottom: 6, marginTop: 10 }}>Look Count ({t})</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
                 {[0, 1, 2, 3].map(n => {
                   const cnt = freq[n];
-                  const pct = total > 0 ? Math.round((cnt / total) * 100) : 0;
+                  const pct = t > 0 ? Math.round((cnt / t) * 100) : 0;
                   return (
                     <div key={n} style={{ background: G.sf2, border: "1px solid " + G.gold + "33", borderRadius: 8, padding: "10px 16px", textAlign: "center", minWidth: 70 }}>
                       <div style={{ fontSize: 13, fontWeight: 800, color: G.tx3 }}>{labels[n]}</div>
@@ -821,7 +764,7 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
         );
       })()}
 
-      {/* ── 1B PITCHER TENDENCIES CARD ── */}
+      {/* 1B Pitcher Tendencies */}
       {(() => {
         if (!showReads) return null;
         const brPool1B = scopedGames.flatMap(g => g.pitches.filter(p => scope.inScope(p, g) && p.brRead && (p.brRead.move1B || p.brRead.step1B || p.brRead.handPos1B)));
@@ -830,20 +773,16 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
         if (filterCounts.size > 0) rows = rows.filter(p => filterCounts.has(p.balls + "-" + p.strikes));
         if (filterOuts.size > 0) rows = rows.filter(p => filterOuts.has(String(p.outs)));
         if (rows.length === 0) return null;
-        // Pickoff cross-reference uses all scoped games
         const pks = scopedGames.flatMap(g => g.pitches.filter(p => scope.inScope(p, g) && (p.type === "PK" || p.type === "PKO" || p.type === "PK-E") && p.brRead && (p.brRead.move1B || p.brRead.step1B)));
 
-        // Move type distribution
         const moveFreq = { quick: 0, best: 0, show: 0 };
         const moveTotal = rows.filter(p => p.brRead.move1B).length;
         rows.forEach(p => { if (p.brRead.move1B) moveFreq[p.brRead.move1B]++; });
 
-        // Step distribution
         const stepFreq = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
         const stepTotal = rows.filter(p => p.brRead.step1B).length;
         rows.forEach(p => { if (p.brRead.step1B) stepFreq[p.brRead.step1B]++; });
 
-        // Hand position distribution
         const handFreq = { high: 0, mid: 0, low: 0 };
         const handTotal = rows.filter(p => p.brRead.handPos1B).length;
         rows.forEach(p => { if (p.brRead.handPos1B) handFreq[p.brRead.handPos1B]++; });
