@@ -36,7 +36,7 @@ function RosterManager({ roster = [], onSave, onClose }) {
 
         {list.length === 0 ? (
           <div style={{ fontSize: 12, color: G.tx3, textAlign: "center", padding: "16px 0" }}>No players yet. Add your roster above.</div>
-        ) : list.sort((a, b) => (parseInt(a.num) || 99) - (parseInt(b.num) || 99)).map(p => (
+        ) : [...list].sort((a, b) => (parseInt(a.num) || 99) - (parseInt(b.num) || 99)).map(p => (
           <div key={p.id} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
             <input value={p.num} onChange={e => upd(p.id, "num", e.target.value)} style={{ ...is, width: 42, textAlign: "center", fontFamily: "'Azeret Mono',monospace" }} />
             <input value={p.name} onChange={e => upd(p.id, "name", e.target.value)} style={{ ...is, flex: 1 }} />
