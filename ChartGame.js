@@ -155,7 +155,8 @@ function ChartGame({ game, onUpdate, onBack, chartState, onChartState, tier, all
     const bunted = buntArmed;
     if (bunted) setBuntArmed(false);
     if (bunted && res === "foul" && strikes === 2) res = "K"; // two-strike foul bunt = strikeout
-    const p = { id: Date.now(), type: ty, result: res, balls, strikes, outs, inning, location, batOrder, batSide, timesThrough: curPitcherTTO, runners: { ...runners }, pitcher: curP, ts: new Date().toISOString() };
+    const _bRP = (roster || []).find(rp => (curBatterSlot && curBatterSlot.rosterId && String(rp.id) === String(curBatterSlot.rosterId)) || (curBatterSlot && curBatterSlot.name && rp.name === curBatterSlot.name));
+    const p = { id: Date.now(), type: ty, result: res, balls, strikes, outs, inning, location, batOrder, batSide, timesThrough: curPitcherTTO, runners: { ...runners }, pitcher: curP, rosterId: _bRP ? _bRP.id : (curBatterSlot && curBatterSlot.rosterId) || null, batterName: (_bRP && _bRP.name) || (curBatterSlot && curBatterSlot.name) || null, ts: new Date().toISOString() };    
     if (bunted) p.bunt = true;
     // Successful sac bunt: bunted out with runner(s) on -> auto-tag (drives QAB + HH exclusion)
     // QAB gate: a sacrifice only counts with 0 outs \u2014 a bunted out at 1\u20132 outs is a failed bunt for a hit
