@@ -24,57 +24,85 @@ function PitchingTendencies({ games, tier, activeGame, activePitcher, scoutingNo
       </div>
       {sub === "report"
         ? (<>
+            {/* Team profiles at the top */}
             <Library games={games} tier={tier} />
+
+            {/* Scout Notes below */}
             {activeTeam && (
-              <div style={cd}>
-                <div style={cT}>📝 Scout Notes — {activeTeam}</div>
+              <div style={{ ...cd, marginTop: 8, borderLeft: "3px solid " + G.gold }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <div style={cT}>Scout Notes — {activeTeam}</div>
+                  {teamNotes.length > 0 && (
+                    <div style={{ fontSize: 10, color: G.tx3, fontFamily: "'Azeret Mono',monospace", fontWeight: 700 }}>
+                      {teamNotes.length} note{teamNotes.length !== 1 ? "s" : ""}
+                    </div>
+                  )}
+                </div>
+
+                {/* New note input */}
                 <textarea
                   value={noteText}
                   onChange={e => setNoteText(e.target.value)}
-                  placeholder={"Add a note about " + activeTeam + " or their pitchers..."}
-                  style={{ width: "100%", minHeight: 70, background: G.sf2, border: "1px solid " + G.bd2, borderRadius: 8, padding: 10, color: G.tx, fontSize: 12, resize: "vertical", fontFamily: "inherit", boxSizing: "border-box", marginBottom: 8 }}
+                  placeholder={teamNotes.length === 0 ? "Add a note about " + activeTeam + " or their pitchers..." : "Add another note..."}
+                  style={{ width: "100%", minHeight: 60, background: G.sf2, border: "1px solid " + G.bd2, borderRadius: 6, padding: "10px 12px", color: G.tx, fontSize: 12, resize: "vertical", fontFamily: "inherit", boxSizing: "border-box", marginBottom: 8, outline: "none" }}
                 />
-                <button
-                  onClick={() => {
-                    if (!noteText.trim() || !onSaveNote) return;
-                    onSaveNote(activeTeam, noteText.trim());
-                    setNoteText("");
-                  }}
-                  style={{ ...btn("p"), fontSize: 12, padding: "8px 18px", marginBottom: 14 }}>
-                  + Add Note
-                </button>
-                {teamNotes.length === 0 && (
-                  <div style={{ fontSize: 12, color: G.tx3, fontStyle: "italic" }}>No notes yet for {activeTeam}. Add observations above or tap 📝 during a game.</div>
-                )}
-                {[...teamNotes].reverse().map(n => (
-                  <div key={n.id} style={{ background: G.sf2, border: "1px solid " + G.bd2, borderRadius: 8, padding: "10px 14px", marginBottom: 8 }}>
-                    {editId === n.id ? (
-                      <div>
-                        <textarea
-                          value={editText}
-                          onChange={e => setEditText(e.target.value)}
-                          style={{ width: "100%", minHeight: 60, background: G.sf, border: "1px solid " + G.gold + "55", borderRadius: 6, padding: 8, color: G.tx, fontSize: 12, resize: "vertical", fontFamily: "inherit", boxSizing: "border-box" }}
-                        />
-                        <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-                          <button onClick={() => {
-                            if (editText.trim() && onSaveNote) onSaveNote(activeTeam, editText.trim(), n.id);
-                            setEditId(null); setEditText("");
-                          }} style={{ ...btn("p"), fontSize: 11, padding: "5px 12px" }}>Save</button>
-                          <button onClick={() => { setEditId(null); setEditText(""); }} style={{ ...btn("g"), fontSize: 11, padding: "5px 12px" }}>Cancel</button>
-                        </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: teamNotes.length > 0 ? 12 : 0 }}>
+                  <button
+                    onClick={() => {
+                      if (!noteText.trim() || !onSaveNote) return;
+                      onSaveNote(activeTeam, noteText.trim());
+                      setNoteText("");
+                    }}
+                    style={{ ...btn("p"), fontSize: 11, padding: "7px 18px" }}>
+                    + Add Note
+                  </button>
+                  {teamNotes.length === 0 && (
+                    <div style={{ fontSize: 11, color: G.tx3, fontStyle: "italic" }}>
+                      or tap 📝 during a game to capture notes live
+                    </div>
+                  )}
+                </div>
+
+                {/* Existing notes list */}
+                {teamNotes.length > 0 && (
+                  <div>
+                    {[...teamNotes].reverse().map(n => (
+                      <div key={n.id} style={{ background: G.sf2, border: "1px solid " + G.bd, borderRadius: 7, padding: "10px 12px", marginBottom: 6 }}>
+                        {editId === n.id ? (
+                          <div>
+                            <textarea
+                              value={editText}
+                              onChange={e => setEditText(e.target.value)}
+                              style={{ width: "100%", minHeight: 60, background: G.sf, border: "1px solid " + G.gold + "55", borderRadius: 6, padding: "8px 10px", color: G.tx, fontSize: 12, resize: "vertical", fontFamily: "inherit", boxSizing: "border-box", outline: "none" }}
+                            />
+                            <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                              <button onClick={() => {
+                                if (editText.trim() && onSaveNote) onSaveNote(activeTeam, editText.trim(), n.id);
+                                setEditId(null); setEditText("");
+                              }} style={{ ...btn("p"), fontSize: 11, padding: "5px 14px" }}>Save</button>
+                              <button onClick={() => { setEditId(null); setEditText(""); }} style={{ ...btn("g"), fontSize: 11, padding: "5px 14px" }}>Cancel</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                              <div style={{ fontSize: 13, color: G.tx, lineHeight: 1.6, flex: 1 }}>{n.text}</div>
+                              <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
+                                <button onClick={() => { setEditId(n.id); setEditText(n.text); }}
+                                  style={{ padding: "4px 9px", borderRadius: 5, border: "none", background: G.sf, color: G.tx3, fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "'Anybody',sans-serif" }}>Edit</button>
+                                <button onClick={() => { if (onSaveNote) onSaveNote(activeTeam, null, n.id, true); }}
+                                  style={{ padding: "4px 9px", borderRadius: 5, border: "none", background: G.sf, color: G.red, fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "'Anybody',sans-serif" }}>Delete</button>
+                              </div>
+                            </div>
+                            <div style={{ fontSize: 10, color: G.tx3, marginTop: 6, fontFamily: "'Azeret Mono',monospace" }}>
+                              {new Date(n.ts).toLocaleDateString()} {new Date(n.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    ) : (
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                        <div style={{ fontSize: 13, color: G.tx, lineHeight: 1.5, flex: 1 }}>{n.text}</div>
-                        <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
-                          <button onClick={() => { setEditId(n.id); setEditText(n.text); }} style={{ ...btn("g"), fontSize: 10, padding: "4px 8px", color: G.tx3 }}>Edit</button>
-                          <button onClick={() => { if (onSaveNote) onSaveNote(activeTeam, null, n.id, true); }} style={{ ...btn("g"), fontSize: 10, padding: "4px 8px", color: G.red }}>Delete</button>
-                        </div>
-                      </div>
-                    )}
-                    <div style={{ fontSize: 10, color: G.tx3, marginTop: 6 }}>{new Date(n.ts).toLocaleDateString()} {new Date(n.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
             )}
           </>)
