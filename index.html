@@ -252,7 +252,7 @@ const fbSaveMeta = async (uid, meta) => {
   try {
     const { db } = getFB();
     if (!db || !uid) return;
-    await db.collection("users").doc(uid).set({ scoutingNotes: meta.scoutingNotes || {}, prefs: meta.prefs || {}, metaUpdatedAt: meta.metaUpdatedAt || Date.now() }, { merge: true });
+    await db.collection("users").doc(uid).set({ scoutingNotes: meta.scoutingNotes || {}, prefs: meta.prefs || {}, roster: meta.roster || [], metaUpdatedAt: meta.metaUpdatedAt || Date.now() }, { merge: true });
   } catch(e) { console.warn("[ArmSight] Firestore meta save failed:", e); }
 };
 
