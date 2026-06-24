@@ -118,7 +118,7 @@ function App() {
         if (!m || !m.metaUpdatedAt) return;
         setData(prev => {
           if (m.metaUpdatedAt <= (prev.metaUpdatedAt || 0)) return prev;
-          const nd = { ...prev, scoutingNotes: m.scoutingNotes || prev.scoutingNotes || {}, prefs: m.prefs || prev.prefs || {}, metaUpdatedAt: m.metaUpdatedAt };
+          const nd = { ...prev, scoutingNotes: m.scoutingNotes || prev.scoutingNotes || {}, prefs: m.prefs || prev.prefs || {}, roster: (Array.isArray(m.roster) && m.roster.length) ? m.roster : (prev.roster || []), metaUpdatedAt: m.metaUpdatedAt };
           saveData(nd);
           return nd;
         });
