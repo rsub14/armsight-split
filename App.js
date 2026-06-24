@@ -23,6 +23,18 @@ function App() {
     saveData(d);
   };
 
+  // Robust cloud meta-save: reads the LIVE firebase auth user at call time (not a captured
+  // closure value), so roster/notes/prefs reliably upload even if React state lagged sign-in.
+  // Mirrors the direct write that we know works. Elite-only by virtue of needing a signed-in cloud user.
+  const cloudMetaSave = (nd) => {
+    try {
+      if (typeof firebase === "undefined" || !firebase.apps || !firebase.apps.length) return;
+      const u = firebase.auth().currentUser;
+      if (!u) return;
+      fbSaveMeta(u.uid, nd);
+    } catch (e) { console.warn("[ArmSight] cloudMetaSave failed:", e); }
+  };
+
   // Save, edit or delete a scouting note for a team
   const saveNote = (team, text, id = null, del = false) => {
     const notes = { ...(data.scoutingNotes || {}) };
@@ -112,16 +124,14 @@ function App() {
           setFbReady(true);
         });
 
-      // Meta doc (notes + prefs) listener \u2014 newer cloud timestamp wins for notes/prefs.
-      // Roster is reconciled separately (cloud-wins) so it isn't blocked by the timestamp gate.
+      // Meta doc listener. Notes/prefs use newer-timestamp-wins; roster reconciles by
+      // content (cloud-wins) so it isn't blocked by the timestamp gate.
       const unsubMeta = db.collection("users").doc(uid).onSnapshot(docSnap => {
         const m = docSnap.data();
         if (!m) return;
         setData(prev => {
-          // Roster: cloud always wins when the cloud has one and it differs from local.
           const cloudRoster = Array.isArray(m.roster) ? m.roster : null;
           const rosterChanged = cloudRoster && cloudRoster.length && JSON.stringify(cloudRoster) !== JSON.stringify(prev.roster || []);
-          // Notes/prefs: keep the newer-timestamp-wins behavior.
           const metaNewer = m.metaUpdatedAt && m.metaUpdatedAt > (prev.metaUpdatedAt || 0);
           if (!rosterChanged && !metaNewer) return prev;
           const nd = {
@@ -265,7 +275,7 @@ function App() {
   return (
     <div style={{ minHeight: "100vh", background: G.bg, color: G.tx, fontFamily: "'Anybody',sans-serif" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Anybody:wght@400;500;600;700;800&family=Azeret+Mono:wght@400;500;700&display=swap');*{box-sizing:border-box;margin:0;padding:0}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:${G.bd2};border-radius:3px}select option{background:#000;color:#fff}button{-webkit-tap-highlight-color:transparent}@media(hover:hover){button:hover{filter:brightness(1.15)}}`}</style>
-      {showRoster && <RosterManager roster={data.roster || []} onClose={() => setShowRoster(false)} onSave={(r) => { const nd = { ...data, roster: r, metaUpdatedAt: Date.now() }; doSave(nd); if (tier === "elite" && fbUser) fbSaveMeta(fbUser.uid, nd); }} />}
+      {showRoster && <RosterManager roster={data.roster || []} onClose={() => setShowRoster(false)} onSave={(r) => { const nd = { ...data, roster: r, metaUpdatedAt: Date.now() }; doSave(nd); cloudMetaSave(nd); }} />}
       {showSettings && <SettingsPanel licKey={licKey} tier={tier} onClose={() => setShowSettings(false)} onManageRoster={() => { setShowSettings(false); setShowRoster(true); }}
         onClearKey={() => { clearLicense(); setLicKey(null); setTier(null); setShowSettings(false); handleFbSignOut(); }}
         fbUser={fbUser} onFbSignOut={handleFbSignOut} onShowFbAuth={() => { setShowSettings(false); setShowFbAuth(true); }}
