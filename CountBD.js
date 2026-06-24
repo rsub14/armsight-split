@@ -1,4 +1,4 @@
-function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "pitching" }) {
+function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "pitching", roster = [] }) {
   const lockedTeam = activeGame ? (activeGame.opponent || "Unknown").trim() : null;
 
   const scope = useScope(games, activeGame);
@@ -57,7 +57,7 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
     const all = [];
     scopedGames.forEach(g => g.pitches.forEach(p => {
       if (EVENTS.has(p.type)) return;
-      if (pitcherSelected(p, g)) all.push(g.pregame ? { ...p, _pg: 1 } : p);
+      if (pitcherSelected(p, g)) all.push(g.pregame ? { ...p, _pg: 1, _gid: g.id } : { ...p, _gid: g.id });
     }));
     return all;
   })();
@@ -81,33 +81,67 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
   });
   const ps = Object.values(pm).sort((a, b) => b.pitches.length - a.pitches.length);
 
-  // Build hitter name map from lineups across all games
-  const hitterNameMap = {};
-  (allGames || games).forEach(g => {
-    if (!g.lineup) return;
-    g.lineup.forEach(slot => {
-      if (slot.name && !hitterNameMap[slot.slot]) hitterNameMap[slot.slot] = { name: slot.name, hand: slot.hand || "R" };
-      else if (slot.name && hitterNameMap[slot.slot] && !hitterNameMap[slot.slot].name) hitterNameMap[slot.slot].name = slot.name;
-    });
-  });
+  // ── HITTER LIST BY PLAYER IDENTITY (roster players + anyone seen in games) ──
+  // Each entry is keyed by a stable player key: rosterId when known, else the name.
+  // The filter matches a pitch to a player by the rosterId/batterName stamped at log time
+  // (new pitches), falling back to the game-lineup slot->name lookup for older named games.
+  const playerKeyOf = (rid, nm) => rid != null ? "rid:" + rid : (nm ? "nm:" + nm.trim().toLowerCase() : null);
 
-  // Build hitter list from batOrder values seen in pitch pool PLUS lineup slots from scoped games
-  const seenOrders = [...new Set(pitchPool.filter(p => p.batOrder).map(p => p.batOrder))];
-  // Also include all lineup slots from scoped games (in case no pitches yet)
+  // Resolve a name for a pitch's batter: prefer stamped batterName, else look up the
+  // pitch's game lineup by batOrder. (Used both to build the list and to filter.)
+  const gameById = {};
+  (allGames || games).forEach(g => { gameById[g.id] = g; });
+  const pitchPlayer = (p) => {
+    if (p.rosterId != null || p.batterName) {
+      const nm = p.batterName || ((roster || []).find(rp => String(rp.id) === String(p.rosterId)) || {}).name || null;
+      return { key: playerKeyOf(p.rosterId, nm), name: nm, rosterId: p.rosterId != null ? p.rosterId : null };
+    }
+    // Fallback: older pitch with only batOrder — resolve via that game's lineup
+    const g = p._gid != null ? gameById[p._gid] : null;
+    return { key: null, name: null, rosterId: null, slot: p.batOrder || null };
+  };
+
+  // Build the dropdown options: start from the team roster, then add anyone seen in scoped games.
+  const playerMap = {};
+  (roster || []).forEach(rp => {
+    const key = playerKeyOf(rp.id, rp.name);
+    if (key) playerMap[key] = { key, name: rp.name || ("#" + (rp.num || "?")), rosterId: rp.id, num: rp.num || null };
+  });
+  // Names seen in games — from stamped pitches first, then from lineups (named slots)
+  pitchPool.forEach(p => {
+    if (p.rosterId != null || p.batterName) {
+      const nm = p.batterName || ((roster || []).find(rp => String(rp.id) === String(p.rosterId)) || {}).name || null;
+      const key = playerKeyOf(p.rosterId, nm);
+      if (key && !playerMap[key]) playerMap[key] = { key, name: nm || "(unknown)", rosterId: p.rosterId != null ? p.rosterId : null };
+    }
+  });
   scopedGames.forEach(g => {
     if (!g.lineup) return;
     g.lineup.forEach(slot => {
-      if (slot.slot) seenOrders.push(slot.slot);
+      if (!slot.name) return;
+      const key = playerKeyOf(slot.rosterId != null ? slot.rosterId : null, slot.name);
+      if (key && !playerMap[key]) playerMap[key] = { key, name: slot.name, rosterId: slot.rosterId != null ? slot.rosterId : null, num: slot.num || null };
     });
   });
-  const uniqueOrders = [...new Set(seenOrders)].sort((a, b) => a - b);
-  const hitterList = uniqueOrders.map(slot => ({
-    slot,
-    name: hitterNameMap[slot]?.name || null,
-    hand: hitterNameMap[slot]?.hand || "R",
-    label: hitterNameMap[slot]?.name || `#${slot}`,
-  }));
+  const hitterList = Object.values(playerMap).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
   const hasLineup = hitterList.length > 0;
+
+  // Set of player keys a pitch can be matched against (for the filter)
+  const pitchPlayerKeys = (p) => {
+    const keys = new Set();
+    if (p.rosterId != null) keys.add("rid:" + p.rosterId);
+    if (p.batterName) keys.add("nm:" + p.batterName.trim().toLowerCase());
+    // Fallback for older pitches: resolve name via this game's lineup slot
+    if (p.rosterId == null && !p.batterName && p.batOrder != null && p._gid != null) {
+      const g = gameById[p._gid];
+      const slot = g && g.lineup ? g.lineup.find(s => s.slot === p.batOrder) : null;
+      if (slot) {
+        if (slot.rosterId != null) keys.add("rid:" + slot.rosterId);
+        if (slot.name) keys.add("nm:" + slot.name.trim().toLowerCase());
+      }
+    }
+    return keys;
+  };
 
   const allPitches    = pitchPool;
   const pitchTypesList = [...new Set(allPitches.map(p => p.type))].sort();
@@ -117,7 +151,7 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
   if (filterTypes.size > 0)   filtered = filtered.filter(p => filterTypes.has(p.type));
   if (filterCounts.size > 0)  filtered = filtered.filter(p => filterCounts.has(`${p.balls}-${p.strikes}`));
   if (filterSides.size > 0)   filtered = filtered.filter(p => filterSides.has(p.batSide));
-  if (filterHitters.size > 0) filtered = filtered.filter(p => filterHitters.has(p.batOrder));
+  if (filterHitters.size > 0) filtered = filtered.filter(p => { const keys = pitchPlayerKeys(p); for (const k of keys) if (filterHitters.has(k)) return true; return false; });
   if (filterSits.size > 0) {
     filtered = filtered.filter(p => {
       const r = p.runners || {};
@@ -294,10 +328,10 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
             <button onClick={() => toggleSide("R")} style={{ ...chipStyle(filterSides.has("R")), padding: "4px 8px", fontSize: 10 }}>RHB</button>
             {/* Hitter dropdown */}
             {hasLineup && (
-              <select value={selectedHitter} onChange={e => { const v = e.target.value; setSelectedHitter(v); if (v) setFilterHitters(new Set([parseInt(v)])); else setFilterHitters(new Set()); }}
+              <select value={selectedHitter} onChange={e => { const v = e.target.value; setSelectedHitter(v); if (v) setFilterHitters(new Set([v])); else setFilterHitters(new Set()); }}
                 style={{ ...selStyle, padding: "4px 6px", fontSize: 10, minWidth: 90 }}>
                 <option value="">All hitters</option>
-                {hitterList.map(h => <option key={h.slot} value={h.slot}>{h.label}</option>)}
+                {hitterList.map(h => <option key={h.key} value={h.key}>{h.name}</option>)}
               </select>
             )}
             {anyFilterActive && <button onClick={clearAllFilters} style={{ background: "transparent", border: "none", color: G.tx3, fontSize: 10, fontWeight: 700, cursor: "pointer" }}>Clear</button>}
@@ -403,8 +437,8 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
               ...(filterCounts.size > 0 ? { "Count": filterCounts } : {}),
               ...(filterSides.size > 0 ? { "Batter Side": new Set(Array.from(filterSides).map(s => s === "L" ? "LHB" : "RHB")) } : {}),
               ...(filterHitters.size > 0 ? { "Hitter": new Set(Array.from(filterHitters).map(slot => {
-                const h = hitterList.find(h => h.slot === slot);
-                return h ? h.label : ("#" + slot);
+                const h = hitterList.find(h => h.key === slot);
+                return h ? h.name : String(slot);
               })) } : {}),
               ...(filterSits.size > 0 ? { "Runners": new Set(Array.from(filterSits).map(s => ({ empty: "Empty", "1": "1B", "2": "2B", "3": "3B", "12": "1B+2B", "13": "1B+3B", "23": "2B+3B", "123": "Loaded" })[s] || s)) } : {}),
               ...(filterOuts.size > 0 ? { "Outs": new Set(Array.from(filterOuts).map(o => o + (o === "1" ? " out" : " outs"))) } : {}),
@@ -457,7 +491,7 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
 
       {/* Pitch Sequences */}
       {canAccess("zones", tier) ? (() => {
-        const seqSource = filterHitters.size === 1 ? allPitches.filter(p => filterHitters.has(p.batOrder)) : allPitches;
+        const seqSource = filterHitters.size === 1 ? allPitches.filter(p => { const keys = pitchPlayerKeys(p); for (const k of keys) if (filterHitters.has(k)) return true; return false; }) : allPitches;
         if (seqSource.length < 3) return null;
 
         const seqMap = {};
@@ -471,7 +505,7 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
         const entries = Object.entries(seqMap).filter(([, nexts]) => Object.values(nexts).reduce((a,b)=>a+b,0) >= 2);
         if (!entries.length) return null;
 
-        const hitterLabel = filterHitters.size > 0 ? (hitterList.find(h => filterHitters.has(h.slot))?.label || "Selected Hitter") : "All";
+        const hitterLabel = filterHitters.size > 0 ? (hitterList.find(h => filterHitters.has(h.key))?.name || "Selected Hitter") : "All";
 
         return (
           <div style={cd}>
