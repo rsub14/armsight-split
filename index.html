@@ -250,9 +250,15 @@ const fbLoadGames = async (uid) => {
 // Delete a game from Firestore
 const fbSaveMeta = async (uid, meta) => {
   try {
-    const { db } = getFB();
-    if (!db || !uid) return;
+    let { db } = getFB();
+    // Fallback: if getFB didn't hand back a db but Firebase is initialized, use it directly.
+    if (!db && typeof firebase !== "undefined" && firebase.apps && firebase.apps.length) {
+      console.log("[ArmSight] fbSaveMeta: getFB db was null, falling back to firebase.firestore()");
+      db = firebase.firestore();
+    }
+    if (!db || !uid) { console.log("[ArmSight] fbSaveMeta: bailing — db?", !!db, "uid?", !!uid); return; }
     await db.collection("users").doc(uid).set({ scoutingNotes: meta.scoutingNotes || {}, prefs: meta.prefs || {}, roster: meta.roster || [], metaUpdatedAt: meta.metaUpdatedAt || Date.now() }, { merge: true });
+    console.log("[ArmSight] fbSaveMeta: WRITE COMPLETE, roster len:", (meta.roster || []).length);
   } catch(e) { console.warn("[ArmSight] Firestore meta save failed:", e); }
 };
 
