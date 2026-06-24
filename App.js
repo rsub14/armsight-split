@@ -27,11 +27,14 @@ function App() {
   // closure value), so roster/notes/prefs reliably upload even if React state lagged sign-in.
   // Mirrors the direct write that we know works. Elite-only by virtue of needing a signed-in cloud user.
   const cloudMetaSave = (nd) => {
+    console.log("[ArmSight] cloudMetaSave ENTER. roster len:", (nd && nd.roster ? nd.roster.length : "none"));
     try {
-      if (typeof firebase === "undefined" || !firebase.apps || !firebase.apps.length) return;
+      if (typeof firebase === "undefined" || !firebase.apps || !firebase.apps.length) { console.log("[ArmSight] cloudMetaSave: firebase not ready"); return; }
       const u = firebase.auth().currentUser;
-      if (!u) return;
+      if (!u) { console.log("[ArmSight] cloudMetaSave: no currentUser"); return; }
+      console.log("[ArmSight] cloudMetaSave: calling fbSaveMeta for", u.uid);
       fbSaveMeta(u.uid, nd);
+      console.log("[ArmSight] cloudMetaSave: fbSaveMeta called");
     } catch (e) { console.warn("[ArmSight] cloudMetaSave failed:", e); }
   };
 
