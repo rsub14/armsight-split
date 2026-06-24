@@ -1,4 +1,4 @@
-function PitchingTendencies({ games, tier, activeGame, activePitcher, scoutingNotes = {}, onSaveNote }) {
+function PitchingTendencies({ games, tier, activeGame, activePitcher, scoutingNotes = {}, onSaveNote, roster = [] }) {
   const [sub, setSub] = useState("analyzer");
   const [noteText, setNoteText] = useState("");
   const [editId, setEditId] = useState(null);
@@ -78,7 +78,7 @@ function PitchingTendencies({ games, tier, activeGame, activePitcher, scoutingNo
               </div>
             )}
           </>)
-        : <CountBD games={games} allGames={games} tier={tier} activeGame={activeGame} activePitcher={activePitcher} section="pitching" />}
+        : <CountBD games={games} allGames={games} tier={tier} activeGame={activeGame} activePitcher={activePitcher} section="pitching" roster={roster} />}
     </div>
   );
 }
