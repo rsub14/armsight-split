@@ -156,8 +156,9 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
     filtered = filtered.filter(p => {
       const r = p.runners || {};
       const f = !!r.first, s = !!r.second, t = !!r.third;
-      const sitKey = !f && !s && !t ? "empty" : f && !s && !t ? "1" : !f && s && !t ? "2" : !f && !s && t ? "3" : f && s && !t ? "12" : f && !s && t ? "13" : !f && s && t ? "23" : "123";
-      return filterSits.has(sitKey);
+      // EXACT situation: the pitch's occupied bases must equal the tapped set precisely.
+      const want1 = filterSits.has("b1"), want2 = filterSits.has("b2"), want3 = filterSits.has("b3");
+      return f === want1 && s === want2 && t === want3;
     });
   }
   if (filterOuts.size > 0)    filtered = filtered.filter(p => filterOuts.has(String(p.outs)));
@@ -241,21 +242,14 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
   const baseDiamond = () => {
     const pos = { second: [0.5, 0.08], third: [0.08, 0.5], first: [0.92, 0.5] };
     const ds = 44;
+    // Per-base filter keys: "on1" / "on2" / "on3" mean "any pitch with a runner on that base".
+    const baseFilterKey = { first: "b1", second: "b2", third: "b3" };
     const toggleBaseFilter = (baseKey) => {
-      const sitMap = { first: ["1", "12", "13", "123"], second: ["2", "12", "23", "123"], third: ["3", "13", "23", "123"] };
-      const keys = sitMap[baseKey];
-      if (!keys) return;
-      const hasAny = keys.some(k => filterSits.has(k));
-      if (hasAny) {
-        setFilterSits(prev => { const n = new Set(prev); keys.forEach(k => n.delete(k)); return n; });
-      } else {
-        setFilterSits(prev => { const n = new Set(prev); keys.forEach(k => n.add(k)); return n; });
-      }
+      const key = baseFilterKey[baseKey];
+      if (!key) return;
+      setFilterSits(prev => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n; });
     };
-    const isOn = (baseKey) => {
-      const sitMap = { first: ["1", "12", "13", "123"], second: ["2", "12", "23", "123"], third: ["3", "13", "23", "123"] };
-      return sitMap[baseKey].some(k => filterSits.has(k));
-    };
+    const isOn = (baseKey) => filterSits.has(baseFilterKey[baseKey]);
     return (
       <div style={{ width: ds, height: ds, position: "relative", marginBottom: 8 }}>
         <svg width={ds} height={ds} viewBox="0 0 100 100" style={{ position: "absolute" }}>
@@ -352,8 +346,10 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
               })}
               {BALL_ZONES.map(z => {
                 const count = zoneCounts[z.k] || 0;
-                return (<div key={z.k} style={{ gridRow: `${z.r + 1} / span ${z.rowSpan}`, gridColumn: `${z.c + 1} / span ${z.colSpan}`, background: count > 0 ? zoneColor(count) : "#0a0a0a", color: G.tx3, borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed " + G.bd2, fontSize: 7 }}>
-                  {z.k === "dirt" ? "DIRT" : z.rL}
+                const pct = total > 0 ? ((count / total) * 100).toFixed(0) : 0;
+                return (<div key={z.k} style={{ gridRow: `${z.r + 1} / span ${z.rowSpan}`, gridColumn: `${z.c + 1} / span ${z.colSpan}`, background: count > 0 ? zoneColor(count) : "#0a0a0a", color: count > 0 ? "#fff" : G.tx3, borderRadius: 2, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", border: "1px dashed " + G.bd2, gap: 1 }}>
+                  <span style={{ fontSize: 6, color: G.tx3, lineHeight: 1, textTransform: "uppercase", letterSpacing: 0.3 }}>{z.k === "dirt" ? "DIRT" : z.rL}</span>
+                  {count > 0 && <span style={{ fontSize: 10, fontWeight: 800, fontFamily: "'Azeret Mono',monospace", lineHeight: 1 }}>{pct}%</span>}
                 </div>);
               })}
             </div>
@@ -440,7 +436,11 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
                 const h = hitterList.find(h => h.key === slot);
                 return h ? h.name : String(slot);
               })) } : {}),
-              ...(filterSits.size > 0 ? { "Runners": new Set(Array.from(filterSits).map(s => ({ empty: "Empty", "1": "1B", "2": "2B", "3": "3B", "12": "1B+2B", "13": "1B+3B", "23": "2B+3B", "123": "Loaded" })[s] || s)) } : {}),
+              ...(filterSits.size > 0 ? { "Runners": new Set([(() => {
+                const b1 = filterSits.has("b1"), b2 = filterSits.has("b2"), b3 = filterSits.has("b3");
+                const on = [b1 && "1B", b2 && "2B", b3 && "3B"].filter(Boolean);
+                return on.length === 3 ? "Loaded" : on.length ? on.join(" + ") : "Bases empty";
+              })()]) } : {}),
               ...(filterOuts.size > 0 ? { "Outs": new Set(Array.from(filterOuts).map(o => o + (o === "1" ? " out" : " outs"))) } : {}),
               ...(filterTTOs.size > 0 ? { "Times Through": new Set(Array.from(filterTTOs).map(t => t + (t==="1"?"st":t==="2"?"nd":t==="3"?"rd":"th") + " TTO")) } : {}),
               ...(filterResults.size > 0 ? { "Result": new Set(Array.from(filterResults).map(r => ({ K:"K (Swinging)", Kc:"Kc (Looking)", go:"Groundout", fo:"Flyout", po:"Popup", lo:"Lineout", gdp:"GDP", "1b":"Single", "2b":"Double", "3b":"Triple", hr:"Home Run", hbp:"HBP", sb:"Stolen Base", cs:"Caught Stealing", wp:"Wild Pitch", pb:"Passed Ball" })[r] || r)) } : {}),
