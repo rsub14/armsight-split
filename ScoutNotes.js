@@ -1,4 +1,4 @@
-function ScoutNotes({ t, pitches, name }) {
+function ScoutNotes({ t, pitches, name, compact = false }) {
   const notes = [];
   const mk = (ty, tot) => {
     if (!tot) return null;
@@ -68,6 +68,51 @@ function ScoutNotes({ t, pitches, name }) {
   }
 
   if (!notes.length && !ttoShifts.length) return <div style={{ fontSize: 12, color: G.tx3 }}>Charting more...</div>;
+
+  if (compact) {
+    // Parse "Label: value." into { label, value } for grid cells
+    const cells = notes.map(n => {
+      const colon = n.indexOf(":");
+      if (colon === -1) return { label: null, value: n.replace(/\.$/, "") };
+      return { label: n.slice(0, colon).trim(), value: n.slice(colon + 1).replace(/\.$/, "").trim() };
+    });
+    return (
+      <>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 8px" }}>
+          {cells.map((c, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 5, padding: "5px 8px", background: G.sf, borderRadius: 5, minWidth: 0 }}>
+              {c.label && (
+                <span style={{ fontSize: 9, fontWeight: 800, color: G.tx3, letterSpacing: 0.8, textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0 }}>
+                  {c.label}
+                </span>
+              )}
+              <span style={{ fontSize: 12, fontWeight: 800, color: G.gold, fontFamily: "'Azeret Mono',monospace", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {c.value}
+              </span>
+            </div>
+          ))}
+        </div>
+        {ttoShifts.length > 0 && (
+          <div style={{ marginTop: 8, padding: "7px 10px", background: "#0a0a00", borderRadius: 6, border: "1px solid " + G.gold + "44" }}>
+            <div style={{ fontSize: 9, fontWeight: 800, color: G.gold, letterSpacing: 2, textTransform: "uppercase", marginBottom: 5 }}>TTO Shift</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 8px" }}>
+              {ttoShifts.slice(0, 4).map((sh, i) => {
+                const col = sh.kind === "down" ? G.tx3 : G.gold;
+                const arrow = sh.kind === "up" ? "↑" : sh.kind === "down" ? "↓" : "↻";
+                return (
+                  <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 5, padding: "4px 7px", background: G.sf, borderRadius: 5 }}>
+                    <span style={{ fontSize: 10, fontWeight: 800, fontFamily: "'Azeret Mono',monospace", color: col, whiteSpace: "nowrap" }}>{sh.type} {arrow}</span>
+                    <span style={{ fontSize: 10, color: G.tx3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sh.text}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
+
   return (
     <>
       {notes.map((n, i) => (
