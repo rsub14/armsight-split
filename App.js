@@ -112,13 +112,25 @@ function App() {
           setFbReady(true);
         });
 
-      // Meta doc (notes + prefs) listener \u2014 newer cloud timestamp wins
+      // Meta doc (notes + prefs) listener \u2014 newer cloud timestamp wins for notes/prefs.
+      // Roster is reconciled separately (cloud-wins) so it isn't blocked by the timestamp gate.
       const unsubMeta = db.collection("users").doc(uid).onSnapshot(docSnap => {
         const m = docSnap.data();
-        if (!m || !m.metaUpdatedAt) return;
+        if (!m) return;
         setData(prev => {
-          if (m.metaUpdatedAt <= (prev.metaUpdatedAt || 0)) return prev;
-          const nd = { ...prev, scoutingNotes: m.scoutingNotes || prev.scoutingNotes || {}, prefs: m.prefs || prev.prefs || {}, roster: (Array.isArray(m.roster) && m.roster.length) ? m.roster : (prev.roster || []), metaUpdatedAt: m.metaUpdatedAt };
+          // Roster: cloud always wins when the cloud has one and it differs from local.
+          const cloudRoster = Array.isArray(m.roster) ? m.roster : null;
+          const rosterChanged = cloudRoster && cloudRoster.length && JSON.stringify(cloudRoster) !== JSON.stringify(prev.roster || []);
+          // Notes/prefs: keep the newer-timestamp-wins behavior.
+          const metaNewer = m.metaUpdatedAt && m.metaUpdatedAt > (prev.metaUpdatedAt || 0);
+          if (!rosterChanged && !metaNewer) return prev;
+          const nd = {
+            ...prev,
+            scoutingNotes: metaNewer ? (m.scoutingNotes || prev.scoutingNotes || {}) : (prev.scoutingNotes || {}),
+            prefs:         metaNewer ? (m.prefs || prev.prefs || {})               : (prev.prefs || {}),
+            roster:        rosterChanged ? cloudRoster : (prev.roster || []),
+            metaUpdatedAt: metaNewer ? m.metaUpdatedAt : (prev.metaUpdatedAt || 0),
+          };
           saveData(nd);
           return nd;
         });
