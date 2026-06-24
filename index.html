@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ArmSight — Pitcher Intelligence</title>
+<link rel="manifest" href="/app/manifest.json">
+<meta name="theme-color" content="#FFD700">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ArmSight">
+<link href="https://fonts.googleapis.com/css2?family=Anybody:wght@400;500;600;700;800&family=Azeret+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<!-- React -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<!-- Firebase compat SDKs (browser-friendly, no bundler needed) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{background:#000;color:#fff;font-family:'Anybody',sans-serif;min-height:100vh}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:#3d3d3d;border-radius:3px}select option{background:#000;color:#fff}button{-webkit-tap-highlight-color:transparent}@media(hover:hover){button:hover{filter:brightness(1.15)}}</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="theme.js"></script>
+<script type="text/babel" src="Bar.js"></script>
+<script type="text/babel" src="BaseW.js"></script>
+<script type="text/babel" src="BatterZone.js"></script>
+<script type="text/babel" src="ScopeBar.js"></script>
+<script type="text/babel" src="DiscBoard.js"></script>
+<script type="text/babel" src="ScoutNotes.js"></script>
+<script src="discCellM.js"></script>
+<script src="pdMatch.js"></script>
+<script src="isQAB.js"></script>
+<script src="analyze.js"></script>
+<script src="currentABPitches.js"></script>
+<script src="buildSequenceMatrix.js"></script>
+<script src="getSituationMultipliers.js"></script>
+<script src="getRecencyMultiplier.js"></script>
+<script src="buildGBFBProfile.js"></script>
+<script src="buildAtBats.js"></script>
+<script src="buildPitcherProfile.js"></script>
+<script src="predict.js"></script>
+<script src="buildTip.js"></script>
+<script src="deriveStateFromGame.js"></script>
+<script src="parsePitchCSV.js"></script>
+<script type="text/babel" src="LicenseGate.js"></script>
+<script type="text/babel" src="FirebaseAuth.js"></script>
+<script type="text/babel" src="RosterManager.js"></script>
+<script type="text/babel" src="Glist.js"></script>
+<script type="text/babel" src="NewG.js"></script>
+<script type="text/babel" src="SettingsPanel.js"></script>
+<script type="text/babel" src="PrintReport.js"></script>
+<script type="text/babel" src="HittingLog.js"></script>
+<script type="text/babel" src="Hitting.js"></script>
+<script type="text/babel" src="Library.js"></script>
+<script type="text/babel" src="CountBD.js"></script>
+<script type="text/babel" src="PitchingTendencies.js"></script>
+<script type="text/babel" src="ChartGame.js"></script>
+<script type="text/babel" src="App.js"></script>
+<script type="text/babel">
+const { useState, useEffect, useCallback, useMemo } = React;
+
+/* --- DATA --- */
+const DEFAULT_PT = [
+  { key: "FB", label: "Fastball",  family: "fastball" },
+  { key: "CB", label: "Curveball", family: "breaking" },
+  { key: "SL", label: "Slider",    family: "breaking" },
+  { key: "CH", label: "Changeup",  family: "offspeed"  },
+  // SI and SP removed from defaults — add via + button as needed
+];
+
+// Family labels for the picker UI
+const FAMILIES = [
+  { key: "fastball", label: "Fastball" },
+  { key: "breaking", label: "Breaking" },
+  { key: "offspeed",  label: "Off-Speed" },
+];
+
+// Hardcoded family map as the ultimate fallback — covers all default pitches
+// even when stored game data predates the family field being added
+const FAMILY_FALLBACK = {
+  FB: "fastball", SI: "fastball",
+  CB: "breaking", SL: "breaking",
+  CH: "offspeed",  SP: "offspeed",
+};
+
+const getPitchFamily = (pitchKey, pitchTypes) => {
+  // First try the stored pitchTypes (covers custom pitches with family set)
+  const pt = pitchTypes.find(p => p.key === pitchKey);
+  if (pt?.family) return pt.family;
+  // Fall back to hardcoded map for default pitches without stored family
+  return FAMILY_FALLBACK[pitchKey] || "unknown";
+};
+
+const RES = [
+  { key: "K", s: "K" },
+  { key: "Kc", s: "\u{A4D8}" },
+  { key: "foul", s: "Foul" },
+  { key: "ball", s: "Ball" },
+  { key: "out", s: "Out" },
+  { key: "hit", s: "Hit" },
+  { key: "hbp", s: "HBP" },
+  { key: "fc", s: "FC" },
+  { key: "roe", s: "ROE" },
+  { key: "gdp", s: "GDP" },
+];
+
+const STRIKE_ZONES = [
+  { k: "z1", r: 1, c: 1, rL: "Up Away", lL: "Up In" },
+  { k: "z2", r: 1, c: 2, rL: "Up", lL: "Up" },
+  { k: "z3", r: 1, c: 3, rL: "Up In", lL: "Up Away" },
+  { k: "z4", r: 2, c: 1, rL: "Away", lL: "In" },
+  { k: "z5", r: 2, c: 2, rL: "Mid", lL: "Mid" },
+  { k: "z6", r: 2, c: 3, rL: "In", lL: "Away" },
+  { k: "z7", r: 3, c: 1, rL: "Low Away", lL: "Low In" },
+  { k: "z8", r: 3, c: 2, rL: "Low", lL: "Low" },
+  { k: "z9", r: 3, c: 3, rL: "Low In", lL: "Low Away" },
+];
+const BALL_ZONES = [
+  { k: "b_high", r: 0, c: 1, colSpan: 3, rowSpan: 1, rL: "High", lL: "High" },
+  { k: "b_left", r: 1, c: 0, colSpan: 1, rowSpan: 3, rL: "Off Away", lL: "Off In" },
+  { k: "b_right", r: 1, c: 4, colSpan: 1, rowSpan: 3, rL: "Off In", lL: "Off Away" },
+  { k: "b_low", r: 4, c: 1, colSpan: 3, rowSpan: 1, rL: "Low", lL: "Low" },
+  { k: "dirt", r: 5, c: 1, colSpan: 3, rowSpan: 1, rL: "Dirt", lL: "Dirt" },
+];
+
+const LOC_TIER = { z1: "up", z2: "up", z3: "up", z4: "mid", z5: "mid", z6: "mid", z7: "down", z8: "down", z9: "down", b_high: "up", b_left: "mid", b_right: "mid", b_low: "down", dirt: "down" };
+const ZONE_BY_K = {};
+[...STRIKE_ZONES, ...BALL_ZONES].forEach(z => { ZONE_BY_K[z.k] = z; });
+// Batter-relative location bucket: up / down win first, else in / away from the zone label, else mid.
+const locBucket = (loc, side) => {
+  if (!loc) return null;
+  // In/away is the stronger sequencing axis, so it wins first; height (up/down) is the fallback.
+  const z = ZONE_BY_K[loc];
+  if (z) { const lbl = side === "L" ? z.lL : z.rL; if (lbl.indexOf("In") !== -1) return "in"; if (lbl.indexOf("Away") !== -1) return "away"; }
+  const v = LOC_TIER[loc];
+  if (v === "up") return "up";
+  if (v === "down") return "down";
+  return "mid";
+};
+// ── PLATE-DISCIPLINE CLASSIFIERS (shared by hitter and pitcher views) ──
+const SWING_RESULTS = new Set(["K", "foul", "hit", "out", "fc", "roe", "gdp", "go", "fo", "po", "lo"]);
+const STRIKE_ZONE_KEYS = new Set(STRIKE_ZONES.map(z => z.k));
+const BALL_ZONE_KEYS = new Set(BALL_ZONES.map(z => z.k));
+const pdSeen = (p) => !EVENTS.has(p.type) && p.type !== "UNK" && p.result !== "ibb" && p.result !== "wp" && p.result !== "pb" && !p.bunt;
+const pdSwing = (p) => SWING_RESULTS.has(p.result);
+const pdWhiff = (p) => p.result === "K";
+const pdOutZone = (p) => !!p.location && BALL_ZONE_KEYS.has(p.location);
+const pdInZone = (p) => !!p.location && STRIKE_ZONE_KEYS.has(p.location);
+const pdRates = (pitches) => {
+  const seen = pitches.filter(pdSeen);
+  const swings = seen.filter(pdSwing).length;
+  const oz = seen.filter(pdOutZone);
+  return {
+    whiff: swings ? seen.filter(pdWhiff).length / swings : -1,
+    chase: oz.length ? oz.filter(pdSwing).length / oz.length : -1,
+    take:  seen.length ? seen.filter(p => !pdSwing(p)).length / seen.length : -1,
+    seen: seen.length,
+  };
+};
+const DPC = {
+  FB: "#ff4d4d", CB: "#4da6ff", SL: "#b366ff",
+  CH: "#33ff99", SI: "#ff8c1a", SP: "#33ccff",
+  CT: "#ffe14d", FC: "#ffe14d", FS: "#1ad6c0", KN: "#9e9e9e", EP: "#c0c0c0", FF: "#ff4d4d", FT: "#ff8c1a", ST: "#cc99ff", SV: "#8c66ff",
+  PKO: "#ffd700", PK: "#ffd700", "PK-E": "#ff6600", SB: "#00ff88", WP: "#ff9933", PB: "#ff9933", IBB: "#66aaff"
+};
+const gPC = (k) => DPC[k] || `hsl(${(k.charCodeAt(0) * 47 + (k.length > 1 ? k.charCodeAt(1) : 0) * 31) % 360},70%,58%)`;
+// Readable text color (black/white) for a solid pitch-color background. Handles hex (#rgb/#rrggbb) and hsl().
+const gPCtext = (k) => {
+  const c = gPC(k);
+  let lum = 0.6;
+  const hsl = c.match(/hsl\(\s*[\d.]+\s*,\s*[\d.]+%\s*,\s*([\d.]+)%/);
+  if (hsl) { lum = parseFloat(hsl[1]) / 100; }
+  else {
+    let h = c.replace("#", "");
+    if (h.length === 3) h = h.split("").map(x => x + x).join("");
+    if (h.length >= 6) {
+      const r = parseInt(h.slice(0, 2), 16) / 255, g = parseInt(h.slice(2, 4), 16) / 255, b = parseInt(h.slice(4, 6), 16) / 255;
+      lum = 0.2126 * r + 0.7152 * g + 0.587 * b; // perceived luminance (approx)
+    }
+  }
+  return lum > 0.6 ? "#000" : "#fff";
+};
+
+// colors now live in theme.js
+
+const STK = "armsight_v1";
+const FB_UID_KEY = "armsight_fb_uid";
+
+// ── Firebase config (loaded from CDN scripts in HTML) ────────
+const FB_CONFIG = {
+  apiKey: "AIzaSyCQMwZe9eXt1vnEFpa6mQNuZ2pHrRfFwCE",
+  authDomain: "armsight-50813.firebaseapp.com",
+  projectId: "armsight-50813",
+  storageBucket: "armsight-50813.firebasestorage.app",
+  messagingSenderId: "341730039385",
+  appId: "1:341730039385:web:4bae0142a918efe5094348"
+};
+
+// ── Firebase helpers (only active for Elite tier) ────────────
+let _fbApp = null, _fbDb = null, _fbAuth = null;
+
+const getFB = () => {
+  if (_fbApp) return { db: _fbDb, auth: _fbAuth };
+  // Guard: firebase SDK may not be loaded yet
+  if (typeof firebase === "undefined") {
+    console.warn("[ArmSight] Firebase SDK not loaded yet — sync unavailable this call");
+    return { db: null, auth: null };
+  }
+  try {
+    _fbApp  = firebase.initializeApp(FB_CONFIG);
+    _fbAuth = firebase.auth();
+    _fbDb   = firebase.firestore();
+    _fbDb.enablePersistence({ synchronizeTabs: true }).catch(() => {});
+    return { db: _fbDb, auth: _fbAuth };
+  } catch(e) {
+    // App may already be initialized — try to get existing instance
+    try {
+      _fbApp  = firebase.app();
+      _fbAuth = firebase.auth();
+      _fbDb   = firebase.firestore();
+      return { db: _fbDb, auth: _fbAuth };
+    } catch(e2) {
+      console.warn("[ArmSight] Firebase init failed:", e2);
+      return { db: null, auth: null };
+    }
+  }
+};
+
+// Save a game to Firestore (Elite only)
+const fbSaveGame = async (uid, game) => {
+  try {
+    const { db } = getFB();
+    if (!db || !uid) return;
+    await db.collection("users").doc(uid).collection("games").doc(String(game.id)).set(game);
+  } catch(e) { console.warn("[ArmSight] Firestore save failed:", e); }
+};
+
+// Load all games from Firestore (Elite only)
+const fbLoadGames = async (uid) => {
+  try {
+    const { db } = getFB();
+    if (!db || !uid) return null;
+    const snap = await db.collection("users").doc(uid).collection("games").get();
+    return snap.docs.map(d => d.data());
+  } catch(e) { console.warn("[ArmSight] Firestore load failed:", e); return null; }
+};
+
+// Delete a game from Firestore
+const fbSaveMeta = async (uid, meta) => {
+  try {
+    const { db } = getFB();
+    if (!db || !uid) return;
+    await db.collection("users").doc(uid).set({ scoutingNotes: meta.scoutingNotes || {}, prefs: meta.prefs || {}, metaUpdatedAt: meta.metaUpdatedAt || Date.now() }, { merge: true });
+  } catch(e) { console.warn("[ArmSight] Firestore meta save failed:", e); }
+};
+
+// Delete a game from Firestore
+const fbDeleteGame = async (uid, gameId) => {
+  try {
+    const { db } = getFB();
+    if (!db || !uid) return;
+    await db.collection("users").doc(uid).collection("games").doc(String(gameId)).delete();
+  } catch(e) { console.warn("[ArmSight] Firestore delete failed:", e); }
+};
+const LIC_KEY = "armsight_license";
+
+// \u2500\u2500 SERVER-SIDE KEY VALIDATION \u2500\u2500
+// Set LIC_API to the deployed license worker origin (e.g. "https://armsight-worker.YOURACCT.workers.dev")
+// to verify keys against the issued-key sheet via POST /validate. Blank = local format check only,
+// exactly the pre-v110 behavior \u2014 safe to ship before the worker is deployed.
+const LIC_API = "https://armsight-license.coach-f4f.workers.dev"; // license worker — enforcement LIVE as of v115
+const LIC_CHECK_KEY = "armsight_license_check"; // { key, tier, ts }
+// Resolves to { status: "valid", tier } | { status: "invalid" } | { status: "unknown" }.
+// "unknown" (offline / 5xx / LIC_API unset) must NEVER lock a coach out \u2014 grace applies.
+const serverValidateKey = async (key) => {
+  if (!LIC_API || !key) return { status: "unknown" };
+  try {
+    const res = await fetch(LIC_API + "/validate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key: key.trim().toUpperCase() }) });
+    if (res.status === 200) {
+      const d = await res.json();
+      if (d.valid && d.tier) return { status: "valid", tier: d.tier };
+      if (d.valid === false) return { status: "invalid" };
+    }
+    return { status: "unknown" };
+  } catch (e) { return { status: "unknown" }; }
+};
+
+// Validate a license key and return tier or null
+const validateKey = (key) => {
+  if (!key) return null;
+  const k = key.trim().toUpperCase();
+  if (/^AS-BETA-\d{4}$/.test(k))  return "pro";   // beta = full pro access
+  if (/^AS-BASIC-\d{4}$/.test(k)) return "basic";
+  if (/^AS-PRO-\d{4}$/.test(k))   return "pro";
+  if (/^AS-ELITE-\d{4}$/.test(k)) return "elite";
+  return null;
+};
+
+const getTierLabel = (tier) => {
+  if (tier === "basic") return "Basic";
+  if (tier === "pro")   return "Pro";
+  if (tier === "elite") return "Elite";
+  return "Unknown";
+};
+
+const TIER_COLOR = { basic: "#888", pro: "#ffd700", elite: "#00ccff" };
+
+// Feature access by tier
+const canAccess = (feature, tier) => {
+  if (!tier) return false;
+  const access = {
+    chart:      ["basic", "pro", "elite"],
+    prediction: ["pro", "elite"],
+    zones:      ["pro", "elite"],
+    scout:      ["pro", "elite"],
+    lineup:     ["pro", "elite"],
+    tto:        ["pro", "elite"],
+    pickoffs:   ["pro", "elite"],
+    cloud:      ["elite"],
+  };
+  return (access[feature] || []).includes(tier);
+};
+
+const loadLicense = () => {
+  try { return localStorage.getItem(LIC_KEY) || null; } catch(e) { return null; }
+};
+const saveLicense = (key) => {
+  try { localStorage.setItem(LIC_KEY, key.trim().toUpperCase()); } catch(e) {}
+};
+const clearLicense = () => {
+  try { localStorage.removeItem(LIC_KEY); } catch(e) {}
+};
+const EVENTS = new Set(["PKO", "PK", "PK-E", "SB", "CS", "WP", "PB", "IBB"]);
+
+// Infer whether a pitch result was a ball or strike
+// wp/pb stored with isBall field set at log time
+const inferBallStrike = (p) => {
+  if (["K", "Kc", "foul", "out", "hit", "fc", "roe", "go", "fo", "po", "lo", "gdp"].includes(p.result)) return "strike";
+  if (["ball", "hbp", "ibb"].includes(p.result)) return "ball";
+  if (p.result === "wp" || p.result === "pb") return p.isBall ? "ball" : "strike";
+  return null;
+};
+// Reconstruct the productive-out QAB tag for a groundout from its stored count/runners.
+// Backfills games charted before GO auto-tagging existed. Idempotent, non-destructive.
+const backfillGOTags = (p) => {
+  if (!p || p.result !== "go" || p.bunt) return p;
+  if (p.atBatTags && Object.keys(p.atBatTags).length) return p;
+  const r = p.runners || {};
+  const anyAdv = r.first || r.second || r.third;
+  let t = null;
+  if (p.outs === 0 && anyAdv) t = { advRunner: true };
+  else if (p.outs === 1 && r.third) t = { rbi: true };
+  return t ? { ...p, atBatTags: t } : p;
+};
+const loadData = () => {
+  try {
+    const d = JSON.parse(localStorage.getItem(STK)) || { games: [], scoutingNotes: {}, prefs: {} };
+    if (!d.scoutingNotes) d.scoutingNotes = {};
+    if (!d.prefs) d.prefs = {};
+    if (!Array.isArray(d.roster)) d.roster = []; // team roster: { id, num, name, bats: "R"|"L"|"B" }
+    if (Array.isArray(d.games)) d.games = d.games.map(g => g && Array.isArray(g.pitches) ? { ...g, pitches: g.pitches.map(backfillGOTags) } : g);
+    return d;
+  }
+  catch (e) { return { games: [], scoutingNotes: {}, prefs: {}, roster: [] }; }
+};
+// Resolve the side a hitter actually bats from THIS pitch, given the current pitcher's throwing hand.
+// Switch hitters ("B") bat opposite the pitcher: RHP -> bats L, LHP -> bats R. R/L hitters are fixed.
+// Returns "R" or "L" (never "B") so every pitch records a concrete side and analytics split cleanly.
+const effectiveSide = (bats, pitcherHand) => {
+  if (bats === "B") return (pitcherHand === "L") ? "R" : "L";
+  return (bats === "L") ? "L" : "R";
+};
+// \u2500\u2500 EXPORT / BACKUP HELPERS \u2500\u2500 (all tiers \u2014 the safety net for local-only data)
+const triggerDownload = (filename, text) => {
+  try {
+    const blob = new Blob([text], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+    return true;
+  } catch (e) { try { alert("Export failed: " + e.message); } catch (e2) {} return false; }
+};
+const safeName = (s) => (s || "").toString().replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase() || "game";
+const exportGame = (game) => {
+  if (!game) return;
+  const payload = { format: "armsight-game", version: 1, exportedAt: new Date().toISOString(), app: "v116", game };
+  triggerDownload("armsight-" + safeName(game.opponent) + "-" + safeName(game.date || game.id) + ".json", JSON.stringify(payload, null, 2));
+};
+const exportAll = (data) => {
+  const payload = { format: "armsight-backup", version: 1, exportedAt: new Date().toISOString(), app: "v116", data };
+  triggerDownload("armsight-backup-" + new Date().toISOString().slice(0, 10) + ".json", JSON.stringify(payload, null, 2));
+};
+
+// ── CSV EXPORT (lossless round-trip via parsePitchCSV) ──
+// Nested fields are encoded into flat columns: runners -> "123" (bases occupied),
+// tags -> "advRunner|hardHit", plus batOrder/timesThrough/hitBases/bunt/dropReached.
+const CSV_COLS = ["game", "date", "pitcher", "inning", "batOrder", "batSide", "timesThrough", "balls", "strikes", "outs", "type", "location", "result", "hitBases", "runners", "tags", "bunt", "dropReached"];
+const csvCell = (v) => {
+  const s = (v === null || v === undefined) ? "" : String(v);
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+};
+const encRunners = (r) => { if (!r) return ""; let s = ""; if (r.first) s += "1"; if (r.second) s += "2"; if (r.third) s += "3"; return s; };
+const encTags = (t) => t ? Object.keys(t).filter(k => t[k]).join("|") : "";
+const gameToCSVRows = (game) => (game.pitches || []).map(p => CSV_COLS.map(col => {
+  switch (col) {
+    case "game": return game.opponent || "";
+    case "date": return game.date || "";
+    case "pitcher": return p.pitcher || game.pitcher || "";
+    case "runners": return encRunners(p.runners);
+    case "tags": return encTags(p.atBatTags);
+    case "bunt": return p.bunt ? "1" : "";
+    case "dropReached": return p.dropReached ? "1" : "";
+    case "hitBases": return p.hitBases || "";
+    default: return p[col] === undefined ? "" : p[col];
+  }
+}).map(csvCell).join(","));
+const exportGameCSV = (game) => {
+  if (!game) return;
+  const rows = [CSV_COLS.join(","), ...gameToCSVRows(game)];
+  triggerDownload("armsight-" + safeName(game.opponent) + "-" + safeName(game.date || game.id) + ".csv", rows.join("\n"));
+};
+const exportAllCSV = (data) => {
+  const rows = [CSV_COLS.join(",")];
+  (data.games || []).forEach(g => rows.push(...gameToCSVRows(g)));
+  triggerDownload("armsight-all-games-" + new Date().toISOString().slice(0, 10) + ".csv", rows.join("\n"));
+};
+
+let _saveWarned = false;
+const saveData = (d) => {
+  try { localStorage.setItem(STK, JSON.stringify(d)); _saveWarned = false; }
+  catch (e) { if (!_saveWarned) { _saveWarned = true; try { alert("Storage is full \u2014 your latest change was NOT saved. Delete old games to free space."); } catch (e2) {} } }
+};
+try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+
+const cd = { background: G.sf, border: "1px solid " + G.bd, borderRadius: 10, padding: 18, marginBottom: 12 };
+const cT = { fontSize: 11, fontWeight: 800, color: G.gold, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 };
+const btn = (v, d) => ({
+  padding: "10px 18px", borderRadius: 7,
+  border: v === "g" ? "2px solid " + G.bd2 : "none",
+  background: v === "p" ? G.gold : v === "d" ? G.red : "transparent",
+  color: v === "p" ? "#000" : v === "d" ? "#fff" : G.tx2,
+  fontSize: 13, fontWeight: 800, cursor: d ? "not-allowed" : "pointer",
+  opacity: d ? 0.4 : 1, fontFamily: "'Anybody',sans-serif",
+  display: "inline-flex", alignItems: "center", gap: 6
+});
+
+
+
+/* ─── PREDICTION MODEL v3 — Phase-Based with Pitcher Profile ─────────────── */
+// Phase 1 (1-5 pitches):  Baseball priors + early pitcher profile signals
+// Phase 2 (6-15 pitches): Profile + emerging count patterns
+// Phase 3 (16-30 pitches): Profile + solid count data
+// Phase 4 (30+ pitches):  Full count isolation (observed data dominates)
+const PRED_MIN = 4; // minimum pitches in a count for count-specific prediction
+
+// Count category helpers
+const HITTER_COUNTS  = new Set(["2-0","3-0","3-1","2-1"]);
+const PITCHER_COUNTS = new Set(["0-2","1-2","0-1"]);
+const TWO_STRIKE     = new Set(["0-2","1-2","2-2","3-2"]);
+
+// Pitch family helpers
+const FASTBALL_FAMILIES = new Set(["fastball"]);
+const isFastball  = (key, pts) => getPitchFamily(key, pts) === "fastball";
+const isBreaking  = (key, pts) => getPitchFamily(key, pts) === "breaking";
+const isOffspeed  = (key, pts) => getPitchFamily(key, pts) === "offspeed";
+
+// buildPitcherProfile now lives in buildPitcherProfile.js
+
+// ── GB/FB PROFILE ──────────────────────────────────────────────────────────
+
+// isQAB now lives in isQab.js
+
+// buildAtBats now lives in buildAtBats.js
+
+// buildGBFBProfile now lives in buildGBFBProfile.js
+
+
+// getRecencyMultiplier now lives in getRecencyMultipler.js
+
+
+// getSituationMultipliers now lives in getSituationMultipliers.js
+
+// ── MAIN PREDICT FUNCTION ─────────────────────────────────────────────────
+
+// buildSequenceMatrix now lives in buildSequenceMatrix.js
+
+// currentABPitches now lives in currentABPitches.js
+
+// predit now lives in predict.js
+
+//buildTip now lives in buildTip.js
+
+
+// analyze now lives in analyze.js
+
+/* --- BAR CHART --- */
+// Bar now lives in Bar.js
+
+/* --- ZONE WIDGET --- */
+//BatterZone now live ins BatterZone.js
+
+/* --- BASE WIDGET --- */
+// BaseW now lives in BaseW.js
+
+/* --- SCOUT NOTES --- */
+// ScoutNotes now lives in ScoutNotes.js
+
+/* --- PRINT REPORT --- */
+// PrintReport now lives in PrintReport.js
+
+// HittingLog now lives in HittingLog.js
+
+// ChartGame now lives in ChartGame.js
+
+/* --- ZONES TAB --- */
+// ════════ SHARED SCOPE (used by all analyzer tabs) ════════
+// Consistent cascade everywhere:
+//   Pitcher Hand → Teams (multi) → Games (multi, by date) → Pitchers (multi) → sub-filters
+const scopePKey   = (p, g) => (p.pitcher || (g && g.pitcher) || "Unknown").trim().toLowerCase();
+const scopePLabel = (p, g) => (p.pitcher || (g && g.pitcher) || "Unknown").trim();
+const scopeHandOf = (p, g) => {
+  if (p.pitcherHand) return p.pitcherHand;
+  if (!g) return "R";
+  const nm = (p.pitcher || g.pitcher || "").trim();
+  if (nm && Array.isArray(g.relievers)) {
+    const rel = g.relievers.find(r => (r.name || "").trim() === nm);
+    if (rel && rel.hand) return rel.hand;
+  }
+  return g.pitcherHand || "R";
+};
+
+function useScope(games = [], activeGame = null, opts = {}) {
+  const [hand,     setHand]     = useState("all");          // "all" | "L" | "R"
+  const [teams,    setTeams]    = useState(() => new Set(activeGame && activeGame.opponent ? [(activeGame.opponent || "").trim()] : []));
+  const [gameIds,  setGameIds]  = useState(() => new Set()); // empty = all games of the selected team(s)
+  const [pitchers, setPitchers] = useState(() => new Set()); // empty = all pitchers
+  const lockSource = opts.lockSource || null;                // "live" forces live-only (Hitting) and hides the chip
+  const [sourceRaw, setSourceRaw] = useState("all");         // "all" | "live" | "pregame"
+  const source = lockSource || sourceRaw;
+  const setSource = setSourceRaw;
+
+  const allTeams = useMemo(
+    () => [...new Set(games.map(g => (g.opponent || "").trim()).filter(Boolean))].sort(),
+    [games]
+  );
+
+  // games for the selected team(s); none selected = every game
+  const teamGames = useMemo(
+    () => (teams.size === 0 ? games : games.filter(g => teams.has((g.opponent || "").trim()))),
+    [games, teams]
+  );
+  const multiGame = teamGames.length > 1;
+
+  // Source counts over the team's games (pre-source) so the Data Source chip can show totals
+  const liveCount    = useMemo(() => teamGames.filter(g => !g.pregame).length, [teamGames]);
+  const pregameCount = useMemo(() => teamGames.filter(g => g.pregame).length, [teamGames]);
+  const hasPregame   = pregameCount > 0;
+
+  // after the optional specific-game selection
+  const scopedGames = useMemo(
+    () => {
+      const byGame = gameIds.size === 0 ? teamGames : teamGames.filter(g => gameIds.has(g.id));
+      if (source === "live")    return byGame.filter(g => !g.pregame);
+      if (source === "pregame") return byGame.filter(g => g.pregame);
+      return byGame;
+    },
+    [teamGames, gameIds, source]
+  );
+
+  const gameById = useMemo(() => {
+    const m = {};
+    games.forEach(g => { m[g.id] = g; });
+    return m;
+  }, [games]);
+
+  // pitchers who actually threw in the scoped games, respecting the hand filter
+  const availablePitchers = useMemo(() => {
+    const m = {};
+    scopedGames.forEach(g => (g.pitches || []).forEach(p => {
+      if (EVENTS.has(p.type)) return;
+      const h = scopeHandOf(p, g);
+      if (hand !== "all" && h !== hand) return;
+      const key = scopePKey(p, g);
+      if (!m[key]) m[key] = { key, label: scopePLabel(p, g), hand: h };
+    }));
+    return Object.values(m).sort((a, b) => a.label.localeCompare(b.label));
+  }, [scopedGames, hand]);
+
+  // keep child selections valid as their parents change
+  useEffect(() => {
+    setGameIds(prev => {
+      if (prev.size === 0) return prev;
+      const valid = new Set(teamGames.map(g => g.id));
+      const next = new Set([...prev].filter(id => valid.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [teamGames]);
+  useEffect(() => {
+    setPitchers(prev => {
+      if (prev.size === 0) return prev;
+      const valid = new Set(availablePitchers.map(p => p.key));
+      const next = new Set([...prev].filter(k => valid.has(k)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [availablePitchers]);
+
+  const matchHand    = (p, g) => hand === "all" || scopeHandOf(p, g) === hand;
+  const matchPitcher = (p, g) => pitchers.size === 0 || pitchers.has(scopePKey(p, g));
+  const inScope      = (p, g) => matchHand(p, g) && matchPitcher(p, g);
+
+  return {
+    hand, setHand, teams, setTeams, gameIds, setGameIds, pitchers, setPitchers,
+    allTeams, teamGames, multiGame, scopedGames, gameById, availablePitchers,
+    matchHand, matchPitcher, inScope,
+    source, setSource, lockSource, liveCount, pregameCount, hasPregame,
+  };
+}
+
+//ScopeBar now lives in ScopeBar.js
+
+// discCellM now lives in discCellM.js
+
+// pdMatch now lives in pdMatch.js
+
+//DiscBoard now lives in DiscBoard.js
+
+// CountBD now lives in CountBD.js
+
+
+/* --- DASHBOARD --- */
+function Dash({ games }) {
+  const [sel, setSel] = useState(null);
+  const pm = {};
+  games.forEach(g => { g.pitches.forEach(p => { const k = p.pitcher || g.pitcher; if (!pm[k]) pm[k] = { name: k, gS: new Set(), pitches: [], events: [] }; pm[k].gS.add(g.id); if (EVENTS.has(p.type)) pm[k].events.push(p); else pm[k].pitches.push(p); }); });
+  const ps = Object.values(pm).map(p => ({ ...p, games: p.gS.size })).sort((a, b) => b.pitches.length - a.pitches.length);
+  useEffect(() => { if (ps.length && !sel) setSel(ps[0].name); }, [ps.length]);
+  if (!ps.length) return <div style={{ ...cd, textAlign: "center", padding: 50 }}>No Data</div>;
+  const d = pm[sel];
+  const t = d ? analyze(d.pitches) : null;
+  const mkB = (ty, tot) => tot ? Object.entries(ty).map(([t, c]) => ({ type: t, count: c, pct: +((c / tot) * 100).toFixed(1) })).sort((a, b) => b.count - a.count) : [];
+
+  return (
+    <div>
+      <div style={{ ...cd, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+        <span style={{ fontSize: 11, color: G.tx3, fontWeight: 800 }}>PITCHER</span>
+        {ps.map(p => <button key={p.name} onClick={() => setSel(p.name)} style={btn(sel === p.name ? "p" : "g")}>{p.name} ({p.pitches.length})</button>)}
+      </div>
+      {t && (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(100px,1fr))", gap: 8, marginBottom: 12 }}>
+            {[{ v: t.total, l: "Pitches" }, { v: t.mix[0]?.type || "-", l: "Primary" }, { v: t.mix[0] ? t.mix[0].pct + "%" : "-", l: "Primary %" }, { v: d.games, l: "Games" }, { v: d.events.filter(e => e.type === "PKO" || e.type === "PK" || e.type === "PK-E").length || "0", l: "Pickoffs" }].map((s, i) => (
+              <div key={i} style={{ ...cd, textAlign: "center", marginBottom: 0, padding: 12 }}>
+                <div style={{ fontSize: 24, fontWeight: 800, fontFamily: "'Azeret Mono',monospace", color: G.gold }}>{s.v}</div>
+                <div style={{ fontSize: 9, color: G.tx3, letterSpacing: 1, textTransform: "uppercase", marginTop: 4, fontWeight: 700 }}>{s.l}</div>
+              </div>
+            ))}
+          </div>
+          <div style={cd}><div style={cT}>Pitch Mix</div><Bar data={t.mix} /></div>
+          {t.fpN > 0 && <div style={cd}><div style={cT}>First Pitch ({t.fpN})</div><Bar data={mkB(t.fpT, t.fpN)} /></div>}
+          {t.tsN > 0 && <div style={cd}><div style={cT}>Two-Strike ({t.tsN})</div><Bar data={mkB(t.tsT, t.tsN)} /></div>}
+          {t.bhN > 0 && <div style={cd}><div style={cT}>Behind ({t.bhN})</div><Bar data={mkB(t.bhT, t.bhN)} /></div>}
+          {t.vLN > 0 && <div style={cd}><div style={cT}>vs LHB ({t.vLN})</div><Bar data={mkB(t.vLT, t.vLN)} /></div>}
+          {t.vRN > 0 && <div style={cd}><div style={cT}>vs RHB ({t.vRN})</div><Bar data={mkB(t.vRT, t.vRN)} /></div>}
+          {Object.keys(t.tto).length > 0 && <div style={cd}><div style={cT}>Times Through</div>{Object.entries(t.tto).sort((a, b) => parseInt(a[0]) - parseInt(b[0])).map(([k, ty]) => { const tot = Object.values(ty).reduce((a, b) => a + b, 0); return <div key={k} style={{ marginBottom: 8 }}><div style={{ fontSize: 11, color: G.tx3, fontWeight: 800, marginBottom: 4 }}>{k === "1" ? "1st" : k === "2" ? "2nd" : k === "3" ? "3rd" : k + "th"} ({tot})</div><Bar data={mkB(ty, tot)} /></div>; })}</div>}
+          <div style={{ ...cd, border: "2px solid " + G.gold + "44" }}><div style={cT}>Report</div><ScoutNotes t={t} pitches={[...d.pitches, ...d.events]} name={sel} /></div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ─── LIBRARY — Team & Pitcher Profiles ─────────────────────────────────── */
+// Library now lives in Library.js 
+
+/* --- GAME LIST --- */
+
+// PitchingTendencies now lives in PitchingTendencies.js
+
+// Hitting now lives in Hitting.js
+
+// parsePitchCSV now lives in parsePitchCSV.js
+
+// Glist now lives in Glist.js
+
+// FirebaseAuth now lives in FirebaseAuth.js
+
+// LicenseGate now lives in LicenseGate.js
+
+/* --- SETTINGS PANEL --- */
+
+// RosterManager now lives in RosterManager.js
+
+// SettingsPanel now lives in SettingsPanel.js
+
+// NewG now lives in NewG.js
+
+/* --- APP --- */
+
+// deriveStateFromGame now lives in deriveStateFromGame.js
+
+const CHART_DEFAULTS = { balls: 0, strikes: 0, outs: 0, inning: 1, batOrder: 1, batSide: "R", timesThrough: 1, runners: { first: false, second: false, third: false }, curP: null };
+
+// App now lives in App.js
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').then(reg => {
+        console.log('[ArmSight] SW registered:', reg.scope);
+
+        // Check for a waiting worker on first load
+        if (reg.waiting) showUpdateBanner(reg.waiting);
+
+        // New worker installed and waiting
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          if (!newWorker) return;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // New version ready — show the banner
+              showUpdateBanner(newWorker);
+            }
+          });
+        });
+      }).catch(err => console.warn('[ArmSight] SW failed:', err));
+
+      // When the new SW takes control, reload to get fresh files
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+          refreshing = true;
+          window.location.reload();
+        }
+      });
+    });
+  }
+
+  function showUpdateBanner(worker) {
+    // Don't show twice
+    if (document.getElementById('as-update-banner')) return;
+
+    const banner = document.createElement('div');
+    banner.id = 'as-update-banner';
+    banner.style.cssText = `
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1a1a1a;
+      border: 1px solid #FFD700;
+      border-radius: 10px;
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      z-index: 99999;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+      font-family: 'Azeret Mono', monospace;
+      white-space: nowrap;
+      max-width: calc(100vw - 32px);
+    `;
+
+    const text = document.createElement('span');
+    text.style.cssText = 'font-size: 12px; color: #aaa; font-weight: 500;';
+    text.textContent = 'Update available';
+
+    const btn = document.createElement('button');
+    btn.style.cssText = `
+      background: #FFD700;
+      color: #000;
+      border: none;
+      border-radius: 6px;
+      padding: 7px 14px;
+      font-family: 'Anybody', sans-serif;
+      font-size: 12px;
+      font-weight: 900;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    `;
+    btn.textContent = 'Tap to update';
+    btn.onclick = () => {
+      worker.postMessage({ type: 'SKIP_WAITING' });
+      btn.textContent = 'Updating…';
+      btn.disabled = true;
+      // Fallback — if controllerchange doesn't fire within 3 seconds, force reload
+      setTimeout(() => window.location.reload(), 3000);
+    };
+
+    const dismiss = document.createElement('button');
+    dismiss.style.cssText = `
+      background: none;
+      border: none;
+      color: #555;
+      font-size: 16px;
+      cursor: pointer;
+      padding: 0 2px;
+      line-height: 1;
+    `;
+    dismiss.textContent = '×';
+    dismiss.onclick = () => banner.remove();
+
+    banner.appendChild(text);
+    banner.appendChild(btn);
+    banner.appendChild(dismiss);
+    document.body.appendChild(banner);
+  }
+</script>
+</body>
+</html>
