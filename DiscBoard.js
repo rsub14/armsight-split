@@ -11,9 +11,9 @@ function DiscBoard({ pool }) {
     </select>
   );
   const stat = (key, lbl) => (
-    <div onClick={() => setMetric(key)} style={{ flex: 1, textAlign: "center", cursor: "pointer", padding: "8px 4px", borderRadius: 8, background: metric === key ? G.gold + "22" : G.sf2, border: "2px solid " + (metric === key ? G.gold : "transparent") }}>
+    <div onClick={() => setMetric(key)} style={{ flex: 1, textAlign: "center", cursor: "pointer", padding: "10px 4px", borderRadius: 8, background: metric === key ? G.gold + "22" : "transparent", border: "1px solid " + (metric === key ? G.gold : G.bd2) }}>
       <div style={{ fontSize: 18, fontWeight: 800, fontFamily: "'Azeret Mono',monospace", color: metric === key ? G.gold : G.tx }}>{pct(rates[key])}</div>
-      <div style={{ fontSize: 9, color: G.tx3, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>{lbl}</div>
+      <div style={{ fontSize: 9, color: metric === key ? G.gold : G.tx3, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1.2, marginTop: 3 }}>{lbl}</div>
     </div>
   );
   const lblTxt = { whiff: "Whiff% = swing-and-miss / swings", chase: "Chase% = swings / pitches seen (out-of-zone only)", take: "Take% = takes / pitches seen" }[metric];
@@ -29,7 +29,7 @@ function DiscBoard({ pool }) {
       </div>
       {seenLoc.length === 0 ? <div style={{ fontSize: 12, color: G.tx3, fontStyle: "italic" }}>No located pitches for this selection.</div> : (
         <div>
-          <div style={{ fontSize: 9, color: G.tx3, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>{({ whiff: "Whiff %", chase: "Chase %", take: "Take %" })[metric]} by zone</div>
+          <div style={{ fontSize: 10, color: G.tx3, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 8 }}>{({ whiff: "Whiff %", chase: "Chase %", take: "Take %" })[metric]} by zone</div>
           <div style={{ display: "flex", gap: 24, flexWrap: "wrap", justifyContent: "center" }}>
             {["R", "L"].map(side => {
               const sp = seenLoc.filter(p => (p.batSide || "R") === side);
