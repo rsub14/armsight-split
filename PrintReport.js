@@ -147,16 +147,40 @@ function PrintReport({ type, data, onClose }) {
       + '</div>';
   };
 
+  const buildHittingHTML = () => {
+    const d = data;
+    const rows = d.rows || [];
+    if (!rows.length) return "<p>No hitter data in this scope.</p>";
+    const rowsHTML = rows.map(function(r) {
+      return '<tr><td style="text-align:left;font-weight:700">' + r.name + '</td>'
+        + '<td>' + r.qab + '</td><td>' + r.hh + '</td><td>' + r.whiff + '</td><td>' + r.chase + '</td><td>' + r.take + '</td></tr>';
+    }).join("");
+    return '<div class="stat-row">'
+      + '<div class="stat"><div class="stat-n">' + d.batters + '</div><div class="stat-l">Batters</div></div>'
+      + '<div class="stat"><div class="stat-n">' + d.teamQAB + '</div><div class="stat-l">Team QAB</div></div>'
+      + '<div class="stat"><div class="stat-n">' + d.teamHH + '</div><div class="stat-l">Team HH</div></div>'
+      + '</div>'
+      + (d.filterNote ? '<div style="background:#f9f9f9;border:1px solid #ddd;border-radius:6px;padding:8px 14px;margin-bottom:16px;font-size:10px;color:#888">' + d.filterNote + '</div>' : "")
+      + '<h2>Hitters</h2>'
+      + '<table class="ct"><thead><tr><th style="text-align:left">Hitter</th><th>QAB</th><th>HH</th><th>Whiff</th><th>Chase</th><th>Take</th></tr></thead><tbody>'
+      + rowsHTML
+      + '</tbody></table>';
+  };
+
   const reportTitle = type === "library"
     ? (data.name + " \u2014 " + data.selTeam)
+    : type === "hitting"
+    ? (data.team + " \u2014 Hitting")
     : (data.team + (data.pitcher !== "all" ? " \u2014 " + data.pitcher : " \u2014 All Pitchers"));
 
   const reportSubtitle = type === "library"
     ? ("Library Report \u00B7 " + (data.isStaff ? "Staff Overview" : "Pitcher Profile"))
+    : type === "hitting"
+    ? "Hitting Report"
     : "Game Situations Report";
 
   const handlePrint = () => {
-    const bodyHTML = type === "library" ? buildLibraryHTML() : buildSituationsHTML();
+    const bodyHTML = type === "library" ? buildLibraryHTML() : type === "hitting" ? buildHittingHTML() : buildSituationsHTML();
     const fullHTML = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>ArmSight Report</title><style>' + CSS + '</style></head><body>'
       + '<div class="hdr"><div><div class="logo"><span>ARM</span>SIGHT</div><div style="font-size:10px;color:#888;letter-spacing:2px;text-transform:uppercase;margin-top:2px">armsight.app</div></div>'
       + '<div class="hdr-r"><div class="rpt-title">' + reportTitle + '</div><div>' + reportSubtitle + '</div><div>' + printDate + '</div></div></div>'
