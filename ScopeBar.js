@@ -8,19 +8,21 @@ function ScopeBar({ scope }) {
   });
   const chip = (label, active, onClick) => (
     <button key={label} onClick={onClick} style={{
-      padding: "5px 12px", borderRadius: 5, border: "none", cursor: "pointer",
-      background: active ? G.gold : G.sf2, color: active ? "#000" : G.tx2,
+      padding: "5px 12px", borderRadius: 5,
+      border: "1px solid " + (active ? G.gold : G.bd2),
+      cursor: "pointer",
+      background: active ? G.gold : "transparent",
+      color: active ? "#000" : G.tx2,
       fontSize: 11, fontWeight: active ? 800 : 600, fontFamily: "'Anybody',sans-serif",
-      outline: active ? "2px solid " + G.gold : "none", outlineOffset: 1,
     }}>{label}</button>
   );
   const srow = (label, count, onClear, children) => (
-    <div style={{ marginBottom: 10 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
-        <div style={{ fontSize: 9, color: G.tx3, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase" }}>{label}</div>
-        {count > 0 && <span style={{ fontSize: 9, color: G.gold, cursor: "pointer", fontWeight: 700 }} onClick={onClear}>Clear ({count})</span>}
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+        <div style={{ fontSize: 10, color: G.tx3, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase" }}>{label}</div>
+        {count > 0 && <span style={{ fontSize: 10, color: G.gold, cursor: "pointer", fontWeight: 700 }} onClick={onClear}>Clear ({count})</span>}
       </div>
-      <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>{children}</div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{children}</div>
     </div>
   );
   const fmtDate = (d) => {
