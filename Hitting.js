@@ -204,7 +204,7 @@ function Hitting({ games = [], activeGame = null }) {
       <div>
         <ScopeBar scope={scope} />
         <div style={{ ...cd, textAlign: "center", padding: "40px 24px" }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: G.tx, marginBottom: 8 }}>⚾ Hitting</div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: G.tx, marginBottom: 8 }}>Hitting</div>
           <div style={{ fontSize: 12, color: G.tx3, lineHeight: 1.7, maxWidth: 380, margin: "0 auto" }}>
             No hitter data in this scope yet. Enter player names on the lineup card when creating a game; QAB and Hard Hit build as you chart, and can be added after the game from the Chart tab.
           </div>
@@ -230,7 +230,7 @@ function Hitting({ games = [], activeGame = null }) {
   const selStyle = { background: G.sf2, color: G.tx, border: "1px solid " + G.bd2, borderRadius: 6, padding: "6px 8px", fontSize: 12, fontFamily: "'Anybody',sans-serif" };
   const filterRow = (f, set) => (
     <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-      <span style={{ fontSize: 10, color: G.tx3, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Filter HH</span>
+      <span style={{ fontSize: 10, color: G.tx3, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1.2 }}>Filters</span>
       <select value={f.pitch} onChange={e => set("pitch", e.target.value)} style={selStyle}><option value="All">All pitches</option><option value="Fastball">Fastball</option><option value="Breaking">Breaking</option><option value="Offspeed">Offspeed</option></select>
       <select value={f.count} onChange={e => set("count", e.target.value)} style={selStyle}><option value="All">Any count</option><option value="Ahead">Ahead</option><option value="Even">Even</option><option value="Behind">Behind</option></select>
       <select value={f.outs} onChange={e => set("outs", e.target.value)} style={selStyle}><option value="All">Any outs</option><option value="0">0 out</option><option value="1">1 out</option><option value="2">2 out</option></select>
@@ -256,7 +256,7 @@ function Hitting({ games = [], activeGame = null }) {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>{cols.map(c => (
-              <th key={c.key} title={c.tip || c.label} onClick={() => clickSort(c.key)} style={{ padding: "7px 6px", textAlign: c.nm ? "left" : "center", cursor: "pointer", fontSize: 10, fontWeight: 800, color: sortKey === c.key ? G.gold : G.tx3, whiteSpace: "nowrap", borderBottom: "1px solid " + G.bd2, letterSpacing: 0.5, textTransform: "uppercase" }}>
+              <th key={c.key} title={c.tip || c.label} onClick={() => clickSort(c.key)} style={{ padding: "8px 6px", textAlign: c.nm ? "left" : "center", cursor: "pointer", fontSize: 10, fontWeight: 800, color: sortKey === c.key ? G.gold : G.tx3, whiteSpace: "nowrap", borderBottom: "1px solid " + G.bd2, letterSpacing: 1, textTransform: "uppercase" }}>
                 {c.label}{sortKey === c.key ? (sortDir < 0 ? " ▾" : " ▴") : ""}
               </th>
             ))}</tr>
@@ -306,13 +306,13 @@ function Hitting({ games = [], activeGame = null }) {
         const popActive = popF.pitch !== "All" || popF.count !== "All" || popF.outs !== "All" || popF.run !== "All";
         return (
           <div onClick={() => setPopName(null)} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.75)", zIndex: 1000, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 20, overflowY: "auto" }}>
-            <div onClick={e => e.stopPropagation()} style={{ background: G.sf, border: "1px solid " + G.bd, borderRadius: 12, padding: 20, width: "100%", maxWidth: 560, margin: "12px 0" }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: G.sf, border: "1px solid " + G.bd, borderRadius: 12, padding: 20, width: "100%", maxWidth: 560, margin: "12px 0", boxShadow: "0 4px 24px rgba(0,0,0,0.7)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                 <div style={{ fontSize: 15, fontWeight: 800, color: G.tx }}>{popName}</div>
                 <button onClick={() => setPopName(null)} style={{ ...btn("g"), fontSize: 12, padding: "6px 10px" }}>Close</button>
               </div>
               <div style={{ fontSize: 12, color: G.tx3, marginBottom: 12 }}>QAB <span style={{ color: G.gold, fontWeight: 800, fontFamily: "'Azeret Mono',monospace" }}>{fmtAvg(oQab)}</span> · HH <span style={{ color: G.tx, fontWeight: 800, fontFamily: "'Azeret Mono',monospace" }}>{fmtAvg(oHH)}</span> <span style={{ opacity: 0.7 }}>(all situations)</span></div>
-              <div style={{ fontSize: 9, color: G.tx3, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>QAB types (all situations)</div>
+              <div style={{ fontSize: 10, color: G.tx3, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 6 }}>QAB types (all situations)</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
                 {qabTypes.map(t => (
                   <div key={t.l} style={{ background: G.sf2, borderRadius: 6, padding: "5px 10px", fontSize: 11, color: G.tx2 }}>{t.l} <span style={{ color: G.gold, fontWeight: 800, fontFamily: "'Azeret Mono',monospace" }}>{cnt(abs, t.fn)}</span></div>
@@ -323,7 +323,7 @@ function Hitting({ games = [], activeGame = null }) {
                   <button key={k} onClick={() => setPopMetric(k)} style={{ ...btn(popMetric === k ? "p" : "g"), fontSize: 11, padding: "5px 11px", fontWeight: 800 }}>{lbl}</button>
                 ))}
               </div>
-              <div style={{ fontSize: 9, color: G.tx3, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>{({ hh: "Hard-hit avg", whiff: "Whiff %", chase: "Chase %", take: "Take %" })[popMetric]} by zone{popActive ? " (filtered)" : ""}</div>
+              <div style={{ fontSize: 10, color: G.tx3, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 8 }}>{({ hh: "Hard-hit avg", whiff: "Whiff %", chase: "Chase %", take: "Take %" })[popMetric]} by zone{popActive ? " (filtered)" : ""}</div>
               <div style={{ marginBottom: 12 }}>{filterRow(popF, (k, v) => setPopF(f => ({ ...f, [k]: v })))}</div>
               {popMetric === "hh" ? renderHeat(popAbs) : renderDiscHeat(abs, popMetric, popF)}
             </div>
