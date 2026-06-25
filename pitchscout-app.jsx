@@ -381,16 +381,17 @@ const saveData = (d) => {
 };
 try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
 
-const cd = { background: G.sf, border: "1px solid " + G.bd, borderRadius: 10, padding: 18, marginBottom: 12 };
+const cd = { background: G.sf, border: "1px solid " + G.bd, borderRadius: 8, padding: 16, marginBottom: 12, boxShadow: "0 1px 8px rgba(0,0,0,0.5)" };
 const cT = { fontSize: 11, fontWeight: 800, color: G.gold, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 };
 const btn = (v, d) => ({
   padding: "10px 18px", borderRadius: 7,
-  border: v === "g" ? "2px solid " + G.bd2 : "none",
+  border: v === "g" ? "1px solid " + G.bd2 : "none",
   background: v === "p" ? G.gold : v === "d" ? G.red : "transparent",
   color: v === "p" ? "#000" : v === "d" ? "#fff" : G.tx2,
   fontSize: 13, fontWeight: 800, cursor: d ? "not-allowed" : "pointer",
   opacity: d ? 0.4 : 1, fontFamily: "'Anybody',sans-serif",
-  display: "inline-flex", alignItems: "center", gap: 6
+  display: "inline-flex", alignItems: "center", gap: 6,
+  transition: "background 0.12s, color 0.12s, opacity 0.12s"
 });
 
 /* ─── PREDICTION MODEL v3 — Phase-Based with Pitcher Profile ─────────────── */
