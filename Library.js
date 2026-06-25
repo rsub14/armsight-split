@@ -110,11 +110,12 @@ function Library({ games, tier }) {
 
   // Inline chip button style
   const chip = (active) => ({
-    padding: "5px 12px", borderRadius: 5, border: "none", cursor: "pointer",
-    background: active ? G.gold : G.sf2,
+    padding: "5px 12px", borderRadius: 5,
+    border: "1px solid " + (active ? G.gold : G.bd2),
+    cursor: "pointer",
+    background: active ? G.gold : "transparent",
     color: active ? "#000" : G.tx2,
     fontSize: 12, fontWeight: 800, fontFamily: "'Anybody',sans-serif",
-    outline: active ? "2px solid " + G.gold : "none", outlineOffset: 1,
     whiteSpace: "nowrap",
   });
 
@@ -126,7 +127,7 @@ function Library({ games, tier }) {
         color: dataTab === id ? G.gold : G.tx3,
         fontSize: 11, fontWeight: 800, fontFamily: "'Anybody',sans-serif",
         borderBottom: dataTab === id ? "2px solid " + G.gold : "2px solid transparent",
-        letterSpacing: 0.3 }}>
+        letterSpacing: 0.3, transition: "background 0.12s, color 0.12s, border-color 0.12s" }}>
       {label}
     </button>
   );
@@ -167,7 +168,7 @@ function Library({ games, tier }) {
       {/* ── TEAM SELECTOR ── */}
       <div style={{ ...cd, marginBottom: 8 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <div style={{ fontSize: 9, color: G.tx3, fontWeight: 800, letterSpacing: 2, textTransform: "uppercase" }}>Opponent</div>
+          <div style={{ fontSize: 10, color: G.tx3, fontWeight: 800, letterSpacing: 1.5, textTransform: "uppercase" }}>Opponent</div>
           {selTeam && viewPitches.length > 0 && (
             <button onClick={() => setShowPrint(true)}
               style={{ padding: "4px 10px", background: "transparent", border: "1px solid " + G.bd2, borderRadius: 5, color: G.tx3, fontSize: 10, fontWeight: 800, cursor: "pointer", fontFamily: "'Azeret Mono',monospace", letterSpacing: 1 }}>
@@ -192,7 +193,7 @@ function Library({ games, tier }) {
         <>
           {/* ── PITCHER SELECTOR ── */}
           <div style={{ ...cd, marginBottom: 8 }}>
-            <div style={{ fontSize: 9, color: G.tx3, fontWeight: 800, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>Pitcher</div>
+            <div style={{ fontSize: 10, color: G.tx3, fontWeight: 800, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 10 }}>Pitcher</div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               <button onClick={() => setSelPitcher("all")} style={{ ...chip(selPitcher === "all"), display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
                 <span>Staff Overview</span>
@@ -233,14 +234,14 @@ function Library({ games, tier }) {
                 ].map((s, i) => (
                   <div key={i} style={{ background: G.sf2, border: "1px solid " + G.bd, borderRadius: 7, padding: "10px 6px", textAlign: "center" }}>
                     <div style={{ fontSize: 18, fontWeight: 800, fontFamily: "'Azeret Mono',monospace", color: G.gold }}>{s.v}</div>
-                    <div style={{ fontSize: 8, color: G.tx3, letterSpacing: 0.8, textTransform: "uppercase", marginTop: 3, fontWeight: 700 }}>{s.l}</div>
+                    <div style={{ fontSize: 9, color: G.tx3, letterSpacing: 0.8, textTransform: "uppercase", marginTop: 3, fontWeight: 700 }}>{s.l}</div>
                   </div>
                 ))}
               </div>
 
               {/* ── REPORT — above tabs, always visible ── */}
-              <div style={{ background: G.sf2, border: "1px solid " + G.bd, borderLeft: "3px solid " + G.gold, borderRadius: 8, padding: "10px 12px", marginBottom: 8 }}>
-                <div style={{ fontSize: 9, color: G.gold, fontWeight: 800, letterSpacing: 2, textTransform: "uppercase", marginBottom: 8 }}>
+              <div style={{ background: G.sf2, border: "1px solid " + G.bd2, borderTop: "2px solid " + G.gold + "66", borderRadius: 8, padding: "12px 14px", marginBottom: 8 }}>
+                <div style={{ fontSize: 10, color: G.gold, fontWeight: 800, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 8 }}>
                   Report — {selPitcher === "all" ? selTeam + " Staff" : getPitcherDisplay(selPitcher)}
                 </div>
                 <div style={{ fontSize: 12, lineHeight: 1.5 }}>
