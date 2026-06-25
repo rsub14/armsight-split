@@ -209,7 +209,7 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
   const counts = [];
   for (let b = 0; b <= 3; b++) for (let s = 0; s <= 2; s++) counts.push(`${b}-${s}`);
 
-  const chipStyle = (active) => ({ padding: "5px 10px", borderRadius: 5, border: "none", background: active ? G.gold : G.sf2, color: active ? "#000" : G.tx2, fontSize: 11, fontWeight: 800, cursor: "pointer", fontFamily: "'Anybody',sans-serif" });
+  const chipStyle = (active) => ({ padding: "5px 10px", borderRadius: 5, border: "1px solid " + (active ? G.gold : G.bd2), background: active ? G.gold : "transparent", color: active ? "#000" : G.tx2, fontSize: 11, fontWeight: 800, cursor: "pointer", fontFamily: "'Anybody',sans-serif" });
   const selStyle = { background: G.sf2, color: G.tx, border: "1px solid " + G.bd2, borderRadius: 5, padding: "5px 8px", fontSize: 11, fontFamily: "'Anybody',sans-serif", fontWeight: 700 };
 
   // Count grid helper — clickable count cells
@@ -229,7 +229,7 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
           const topPitch = countData ? Object.entries(countData).sort((a,b) => b[1]-a[1])[0] : null;
           return (
             <button key={c} onClick={() => toggleCount(c)}
-              style={{ padding: "6px 4px", borderRadius: 4, border: "none", background: active ? G.gold : G.sf2, color: active ? "#000" : G.tx2, cursor: "pointer", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center" }}>
+              style={{ padding: "6px 4px", borderRadius: 4, border: "1px solid " + (active ? G.gold : G.bd2), background: active ? G.gold : "transparent", color: active ? "#000" : G.tx2, cursor: "pointer", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center" }}>
               <div style={{ fontSize: 12, fontWeight: 800, fontFamily: "'Azeret Mono',monospace" }}>{c}</div>
               {topPitch && <div style={{ fontSize: 9, opacity: 0.8 }}>{topPitch[0]} {Math.round(topPitch[1]/totalInCount*100)}%</div>}
             </button>
@@ -279,9 +279,9 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
   return (
     <div>
       {/* SCOPE (shared cascade) */}
-      <div style={{ ...cd, marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={{ ...cd, marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ fontSize: 10, color: G.tx3, fontWeight: 800 }}>TEAM</div>
+          <div style={{ fontSize: 10, color: G.tx3, fontWeight: 800, letterSpacing: 1.5, textTransform: "uppercase" }}>Team</div>
           {lockedTeam && (
             <div style={{ fontSize: 10, color: G.gold, fontFamily: "'Azeret Mono',monospace", fontWeight: 700, background: G.gold + "18", padding: "2px 8px", borderRadius: 4, border: "1px solid " + G.gold + "44" }}>
               {lockedTeam} · Live Game
@@ -304,7 +304,7 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
             {/* Pitch Type buttons */}
             {pitchTypesList.slice(0, 5).map(t => (
               <button key={t} onClick={() => toggleType(t)}
-                style={{ ...chipStyle(filterTypes.has(t)), background: filterTypes.has(t) ? gPC(t) : G.sf2, color: filterTypes.has(t) ? "#000" : gPC(t), padding: "4px 8px", fontSize: 10 }}>
+                style={{ ...chipStyle(filterTypes.has(t)), background: filterTypes.has(t) ? gPC(t) : "transparent", color: filterTypes.has(t) ? "#000" : gPC(t), border: "1px solid " + (filterTypes.has(t) ? gPC(t) : G.bd2), padding: "4px 8px", fontSize: 10 }}>
                 {t}
               </button>
             ))}
@@ -329,7 +329,7 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
                 {hitterList.map(h => <option key={h.key} value={h.key}>{h.name}</option>)}
               </select>
             )}
-            {anyFilterActive && <button onClick={clearAllFilters} style={{ background: "transparent", border: "none", color: G.tx3, fontSize: 10, fontWeight: 700, cursor: "pointer" }}>Clear</button>}
+            {anyFilterActive && <button onClick={clearAllFilters} style={{ background: "transparent", border: "1px solid " + G.bd2, color: G.tx2, fontSize: 10, fontWeight: 800, cursor: "pointer", borderRadius: 5, padding: "4px 10px", fontFamily: "'Anybody',sans-serif" }}>✕ Clear</button>}
           </div>
         </div>
 
@@ -358,13 +358,13 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
 
           {/* Count grid (clickable) */}
           <div>
-            <div style={{ fontSize: 9, color: G.tx3, fontWeight: 700, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>Count — tap to filter</div>
+            <div style={{ fontSize: 10, color: G.tx3, fontWeight: 800, marginBottom: 6, textTransform: "uppercase", letterSpacing: 1.2 }}>Count — tap to filter</div>
             {countGrid()}
           </div>
 
           {/* Pitch mix summary */}
           <div>
-            <div style={{ fontSize: 9, color: G.tx3, fontWeight: 700, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>Pitch Mix</div>
+            <div style={{ fontSize: 10, color: G.tx3, fontWeight: 800, marginBottom: 6, textTransform: "uppercase", letterSpacing: 1.2 }}>Pitch Mix</div>
             <div style={{ fontSize: 28, fontWeight: 800, fontFamily: "'Azeret Mono',monospace", color: G.gold, marginBottom: 6 }}>{total}<span style={{ fontSize: 12, color: G.tx3, marginLeft: 6 }}>pitches</span></div>
             {typeBD.slice(0, 4).map(d => (
               <div key={d.type} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
@@ -380,17 +380,17 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
 
         {/* More filters row */}
         <div style={{ marginTop: 12, borderTop: "1px solid " + G.bd, paddingTop: 10 }}>
-          <button onClick={() => setShowMoreFilters(s => !s)} style={{ background: "transparent", border: "none", color: G.tx3, fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
-            {showMoreFilters ? "Less filters" : "More filters (runners, outs, TTO, results)"}
+          <button onClick={() => setShowMoreFilters(s => !s)} style={{ background: "transparent", border: "1px solid " + G.bd2, borderRadius: 5, color: G.tx3, fontSize: 10, fontWeight: 800, cursor: "pointer", padding: "4px 10px", fontFamily: "'Anybody',sans-serif", letterSpacing: 0.5 }}>
+            {showMoreFilters ? "▴ Less" : "▾ Runners · Outs · TTO · Result"}
           </button>
           {showMoreFilters && (
-            <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 12 }}>
+            <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 12 }}>
               <div>
-                <div style={{ fontSize: 9, color: G.tx3, fontWeight: 700, marginBottom: 4 }}>Runners</div>
+                <div style={{ fontSize: 10, color: G.tx3, fontWeight: 800, marginBottom: 6, textTransform: "uppercase", letterSpacing: 1.2 }}>Runners</div>
                 {baseDiamond()}
               </div>
               <div>
-                <div style={{ fontSize: 9, color: G.tx3, fontWeight: 700, marginBottom: 4 }}>Outs</div>
+                <div style={{ fontSize: 10, color: G.tx3, fontWeight: 800, marginBottom: 6, textTransform: "uppercase", letterSpacing: 1.2 }}>Outs</div>
                 <div style={{ display: "flex", gap: 3 }}>
                   {["0", "1", "2"].map(o => (
                     <button key={o} onClick={() => toggleOut(o)} style={{ ...chipStyle(filterOuts.has(o)), padding: "4px 10px", fontSize: 10 }}>{o} out{o !== "1" ? "s" : ""}</button>
@@ -398,7 +398,7 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: 9, color: G.tx3, fontWeight: 700, marginBottom: 4 }}>TTO</div>
+                <div style={{ fontSize: 10, color: G.tx3, fontWeight: 800, marginBottom: 6, textTransform: "uppercase", letterSpacing: 1.2 }}>TTO</div>
                 <div style={{ display: "flex", gap: 3 }}>
                   {["1", "2", "3"].map(t => (
                     <button key={t} onClick={() => toggleTTO(t)} style={{ ...chipStyle(filterTTOs.has(t)), padding: "4px 10px", fontSize: 10 }}>{t}x</button>
@@ -406,7 +406,7 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: 9, color: G.tx3, fontWeight: 700, marginBottom: 4 }}>Result</div>
+                <div style={{ fontSize: 10, color: G.tx3, fontWeight: 800, marginBottom: 6, textTransform: "uppercase", letterSpacing: 1.2 }}>Result</div>
                 <select value="" onChange={e => { if (e.target.value) toggleResult(e.target.value); }} style={{ ...selStyle, padding: "4px 6px", fontSize: 10 }}>
                   <option value="">Filter by result</option>
                   <option value="K">Strikeout (swinging)</option>
@@ -470,9 +470,9 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
         const sPct = Math.round((strikes / bsTotal) * 100);
         const bPct = Math.round((balls / bsTotal) * 100);
         return (
-          <div style={{ ...cd, display: "flex", gap: 20, alignItems: "center", padding: 12 }}>
+          <div style={{ ...cd, display: "flex", gap: 12, alignItems: "center", padding: 12 }}>
             <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 22, fontWeight: 800, fontFamily: "'Azeret Mono',monospace", color: G.gold }}>{sPct}%</span>
+              <span style={{ fontSize: 22, fontWeight: 800, fontFamily: "'Azeret Mono',monospace", color: G.tx }}>{sPct}%</span>
               <span style={{ fontSize: 11, color: G.tx3 }}>Strikes ({strikes})</span>
             </div>
             <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8 }}>
@@ -598,8 +598,8 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
             <div style={{ ...cd, marginBottom: 8 }}>
               {/* Header */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <div style={{ fontSize: 9, color: G.tx3, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase" }}>Filters</div>
-                {active && <button onClick={() => { setFilterEvents(new Set()); setFilterBases(new Set()); setFilterCounts(new Set()); setFilterOuts(new Set()); }} style={{ background: "transparent", border: "none", color: G.gold, fontSize: 9, fontWeight: 800, cursor: "pointer", letterSpacing: 0.5 }}>Clear all</button>}
+                <div style={{ fontSize: 10, color: G.tx3, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase" }}>Filters</div>
+                {active && <button onClick={() => { setFilterEvents(new Set()); setFilterBases(new Set()); setFilterCounts(new Set()); setFilterOuts(new Set()); }} style={{ background: "transparent", border: "1px solid " + G.bd2, borderRadius: 5, color: G.tx2, fontSize: 10, fontWeight: 800, cursor: "pointer", letterSpacing: 0.5, padding: "3px 8px" }}>✕ Clear</button>}
               </div>
               {/* Dropdowns row: Event · Count · Outs */}
               <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
@@ -627,7 +627,7 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
                   },
                 ].map(({ label, value, options, onChange, active: isActive }) => (
                   <div key={label} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                    <div style={{ fontSize: 9, color: G.tx3, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase" }}>{label}</div>
+                    <div style={{ fontSize: 10, color: G.tx3, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase" }}>{label}</div>
                     <div style={{ position: "relative" }}>
                       <select value={value} onChange={e => onChange(e.target.value)} style={selActive(isActive)}>
                         {options.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
@@ -641,7 +641,7 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
               <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
                 {/* Base reached — tappable diamond + chip labels */}
                 <div style={{ flexShrink: 0 }}>
-                  <div style={{ fontSize: 9, color: G.tx3, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", marginBottom: 5 }}>Base Reached</div>
+                  <div style={{ fontSize: 10, color: G.tx3, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 5 }}>Base Reached</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                     <div style={{ position: "relative", width: ds, height: ds, flexShrink: 0 }}>
                       <svg width={ds} height={ds} viewBox="0 0 100 100" style={{ position: "absolute" }}>
@@ -762,7 +762,7 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
 
         // ── SHARED RENDER HELPERS ──────────────────────────────────────────
         const subHead = (label) => (
-          <div style={{ fontSize: 9, color: G.tx3, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>{label}</div>
+          <div style={{ fontSize: 10, color: G.tx3, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 6 }}>{label}</div>
         );
         const sumCell = (val, label, color, bg, bd) => (
           <div style={{ background: bg, border: "1px solid " + bd, borderRadius: 7, padding: "10px 14px", textAlign: "center" }}>
@@ -774,9 +774,9 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
           <div style={{ marginBottom: 12 }}>
             {subHead(label)}
             <div style={{ display: "grid", gridTemplateColumns: "1fr repeat(4, 50px)", gap: 2, padding: "3px 8px", marginBottom: 3 }}>
-              <div style={{ fontSize: 9, color: G.tx3, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1 }}>{firstColLabel}</div>
+              <div style={{ fontSize: 9, color: G.tx3, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1.2 }}>{firstColLabel}</div>
               {["Total", "Out", "Safe", "Error"].map(h => (
-                <div key={h} style={{ fontSize: 9, color: G.tx3, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, textAlign: "center" }}>{h}</div>
+                <div key={h} style={{ fontSize: 9, color: G.tx3, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1.2, textAlign: "center" }}>{h}</div>
               ))}
             </div>
             {rows.map(r => (
@@ -813,7 +813,7 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
               <div style={cT}>Pitcher Reads & Pickoffs</div>
               <button onClick={() => setShowReads(s => !s)}
-                style={{ background: "transparent", border: "none", color: G.tx3, fontSize: 9, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", cursor: "pointer" }}>
+                style={{ background: "transparent", border: "1px solid " + G.bd2, borderRadius: 5, color: G.tx3, fontSize: 10, fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase", cursor: "pointer", padding: "3px 8px" }}>
                 {showReads ? "▲ Hide" : "▼ Show"}
               </button>
             </div>
