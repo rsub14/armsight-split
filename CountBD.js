@@ -591,6 +591,9 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
             return { evType, label: eventLabels[evType], color: eventColors[evType], total: rows.length, typeMix };
           }).filter(Boolean);
 
+          const selStyle = { background: G.sf2, border: "1px solid " + G.bd2, borderRadius: 6, color: G.tx, fontSize: 11, padding: "5px 8px", cursor: "pointer", outline: "none", appearance: "none", WebkitAppearance: "none", minWidth: 90 };
+          const selActive = (hasVal) => hasVal ? { ...selStyle, border: "1px solid " + G.gold, color: G.gold } : selStyle;
+
           return (
             <div style={{ ...cd, marginBottom: 8 }}>
               {/* Header */}
@@ -598,16 +601,44 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
                 <div style={{ fontSize: 9, color: G.tx3, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase" }}>Filters</div>
                 {active && <button onClick={() => { setFilterEvents(new Set()); setFilterBases(new Set()); setFilterCounts(new Set()); setFilterOuts(new Set()); }} style={{ background: "transparent", border: "none", color: G.gold, fontSize: 9, fontWeight: 800, cursor: "pointer", letterSpacing: 0.5 }}>Clear all</button>}
               </div>
-              {/* Event chips */}
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 9, color: G.tx3, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", marginBottom: 5 }}>Event</div>
-                <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                  {chip("all-ev", filterEvents.size === 0, () => setFilterEvents(new Set()), "All")}
-                  {evMeta.map(e => chip(e, filterEvents.has(e), () => toggleEvent(e), e))}
-                </div>
+              {/* Dropdowns row: Event · Count · Outs */}
+              <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+                {[
+                  {
+                    label: "Event",
+                    value: filterEvents.size === 1 ? [...filterEvents][0] : "",
+                    options: [{ v: "", l: "All events" }, ...evMeta.map(e => ({ v: e, l: e }))],
+                    onChange: (v) => setFilterEvents(v ? new Set([v]) : new Set()),
+                    active: filterEvents.size > 0,
+                  },
+                  {
+                    label: "Count",
+                    value: filterCounts.size === 1 ? [...filterCounts][0] : "",
+                    options: [{ v: "", l: "All counts" }, ...counts.map(c => ({ v: c, l: c }))],
+                    onChange: (v) => setFilterCounts(v ? new Set([v]) : new Set()),
+                    active: filterCounts.size > 0,
+                  },
+                  {
+                    label: "Outs",
+                    value: filterOuts.size === 1 ? [...filterOuts][0] : "",
+                    options: [{ v: "", l: "All outs" }, ...outMeta.map(o => ({ v: o.k, l: o.label }))],
+                    onChange: (v) => setFilterOuts(v ? new Set([v]) : new Set()),
+                    active: filterOuts.size > 0,
+                  },
+                ].map(({ label, value, options, onChange, active: isActive }) => (
+                  <div key={label} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                    <div style={{ fontSize: 9, color: G.tx3, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase" }}>{label}</div>
+                    <div style={{ position: "relative" }}>
+                      <select value={value} onChange={e => onChange(e.target.value)} style={selActive(isActive)}>
+                        {options.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
+                      </select>
+                      <div style={{ position: "absolute", right: 7, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", fontSize: 9, color: isActive ? G.gold : G.tx3 }}>▾</div>
+                    </div>
+                  </div>
+                ))}
               </div>
               {/* Base reached + Events side by side */}
-              <div style={{ display: "flex", gap: 14, alignItems: "flex-start", marginBottom: 12 }}>
+              <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
                 {/* Base reached — tappable diamond + chip labels */}
                 <div style={{ flexShrink: 0 }}>
                   <div style={{ fontSize: 9, color: G.tx3, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", marginBottom: 5 }}>Base Reached</div>
@@ -627,7 +658,10 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
                       })}
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      {["2B", "3B", "Home"].map(b => chip(b, filterBases.has(b), () => toggleBase(b), b))}
+                      {["2B", "3B", "Home"].map(b => {
+                        const on = filterBases.has(b);
+                        return <button key={b} onClick={() => toggleBase(b)} style={{ ...chipStyle(on), fontSize: 10, padding: "4px 9px" }}>{b}</button>;
+                      })}
                     </div>
                   </div>
                 </div>
@@ -658,28 +692,6 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
                   </div>
                 )}
               </div>
-              <button onClick={() => setShowMoreFilters(s => !s)}
-                style={{ background: "transparent", border: "none", color: G.tx3, fontSize: 10, fontWeight: 700, cursor: "pointer", padding: 0 }}>
-                {showMoreFilters ? "Less filters" : "More filters (count · outs)"}
-              </button>
-              {showMoreFilters && (
-                <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid " + G.bd, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  <div>
-                    <div style={{ fontSize: 9, color: G.tx3, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", marginBottom: 5 }}>Count</div>
-                    <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
-                      {chip("all-c", filterCounts.size === 0, () => setFilterCounts(new Set()), "All")}
-                      {counts.map(c => chip(c, filterCounts.has(c), () => toggleCount(c), c))}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 9, color: G.tx3, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", marginBottom: 5 }}>Outs</div>
-                    <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
-                      {chip("all-o", filterOuts.size === 0, () => setFilterOuts(new Set()), "All")}
-                      {outMeta.map(o => chip(o.k, filterOuts.has(o.k), () => toggleOut(o.k), o.label))}
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           );
         })()}
@@ -743,8 +755,8 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
 
         const availTabs = [
           hasPickoffs && { key: "pickoffs", label: "Pickoffs" },
+          has1B       && { key: "1b",       label: "1B Read" },
           has2B       && { key: "2b",       label: "2B Read" },
-          has1B       && { key: "1b",       label: "1B" },
         ].filter(Boolean);
         const activeTab = availTabs.some(t => t.key === readsTab) ? readsTab : availTabs[0]?.key;
 
@@ -825,13 +837,60 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
                   </div>
                 ) : (
                   <div>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-                      {sumCell(tOut, "Out", "#ffd700", "#ffd70020", "#ffd70044")}
-                      {sumCell(tSafe, "Safe", G.tx2, G.sf2, G.bd)}
-                      {sumCell(tErr, "Error", "#ff6600", "#ff660020", "#ff660044")}
+                    {/* Compact totals strip */}
+                    <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+                      {[
+                        { val: tOut,  label: "Out",   color: "#ffd700" },
+                        { val: tSafe, label: "Safe",  color: G.tx2 },
+                        { val: tErr,  label: "Err",   color: "#ff6600" },
+                      ].map(({ val, label, color }) => (
+                        <div key={label} style={{ display: "flex", alignItems: "center", gap: 5, background: G.sf2, border: "1px solid " + G.bd, borderRadius: 6, padding: "5px 10px" }}>
+                          <span style={{ fontSize: 14, fontWeight: 800, fontFamily: "'Azeret Mono',monospace", color }}>{val}</span>
+                          <span style={{ fontSize: 9, color: G.tx3, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.8 }}>{label}</span>
+                        </div>
+                      ))}
                     </div>
-                    {mkTable("By Count", countRows, "Count", r => r.key)}
-                    {mkTable("By Base", baseRows, "Base", r => baseLabel[r.key] || r.key)}
+                    {/* Side-by-side breakdown grids */}
+                    <div style={{ display: "grid", gridTemplateColumns: countRows.length > 0 && baseRows.length > 0 ? "1fr 1fr" : "1fr", gap: 10 }}>
+                      {[
+                        { label: "By Count", rows: countRows, labelOf: r => r.key },
+                        { label: "By Base",  rows: baseRows,  labelOf: r => baseLabel[r.key] || r.key },
+                      ].map(({ label, rows, labelOf }) => rows.length > 0 && (
+                        <div key={label}>
+                          {subHead(label)}
+                          <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                            {rows.map(r => {
+                              const tot = r.total || 1;
+                              const outW  = Math.round((r.out   / tot) * 100);
+                              const safeW = Math.round((r.safe  / tot) * 100);
+                              const errW  = Math.round((r.error / tot) * 100);
+                              return (
+                                <div key={r.key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                  <div style={{ width: 28, fontSize: 10, fontWeight: 800, fontFamily: "'Azeret Mono',monospace", color: G.gold, flexShrink: 0, textAlign: "right" }}>{labelOf(r)}</div>
+                                  <div style={{ flex: 1, height: 10, borderRadius: 3, overflow: "hidden", display: "flex", background: G.bd }}>
+                                    {outW  > 0 && <div style={{ width: outW  + "%", background: "#ffd700", height: "100%" }} />}
+                                    {safeW > 0 && <div style={{ width: safeW + "%", background: G.tx3,    height: "100%", opacity: 0.5 }} />}
+                                    {errW  > 0 && <div style={{ width: errW  + "%", background: "#ff6600", height: "100%" }} />}
+                                  </div>
+                                  <div style={{ fontSize: 9, color: G.tx3, width: 16, textAlign: "right", flexShrink: 0 }}>{r.total}</div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {/* Legend — only once, under first section */}
+                          {label === "By Count" && (
+                            <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                              {[["#ffd700","Out"],[G.tx3,"Safe"],["#ff6600","Err"]].map(([c,l]) => (
+                                <div key={l} style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                                  <div style={{ width: 8, height: 8, borderRadius: 2, background: c, opacity: l === "Safe" ? 0.5 : 1 }} />
+                                  <span style={{ fontSize: 8, color: G.tx3, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>{l}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )
               )}
@@ -869,52 +928,31 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
                 rows1B.length === 0 ? (
                   <div style={{ fontSize: 11, color: G.tx3, textAlign: "center", padding: "16px 0" }}>No data for active filters.</div>
                 ) : (
-                  <div>
-                    {moveTotal > 0 && (
-                      <div style={{ marginBottom: 12 }}>
-                        {subHead("Move Type (" + moveTotal + ")")}
-                        {barRow("Quick", moveFreq.quick, moveTotal, "#ff4444")}
-                        {barRow("Best", moveFreq.best, moveTotal, G.gold)}
-                        {barRow("Show", moveFreq.show, moveTotal, G.tx3)}
-                      </div>
-                    )}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    {/* Left column: Hand Position + Move Type */}
+                    <div>
+                      {handTotal > 0 && (
+                        <div style={{ marginBottom: 10 }}>
+                          {subHead("Hand Position (" + handTotal + ")")}
+                          {barRow("High", handFreq.high, handTotal, "#ff9933")}
+                          {barRow("Mid",  handFreq.mid,  handTotal, G.gold)}
+                          {barRow("Low",  handFreq.low,  handTotal, G.blu)}
+                        </div>
+                      )}
+                      {moveTotal > 0 && (
+                        <div>
+                          {subHead("Move Type (" + moveTotal + ")")}
+                          {barRow("Quick", moveFreq.quick, moveTotal, "#ff4444")}
+                          {barRow("Best",  moveFreq.best,  moveTotal, G.gold)}
+                          {barRow("Show",  moveFreq.show,  moveTotal, G.tx3)}
+                        </div>
+                      )}
+                    </div>
+                    {/* Right column: Step Reached */}
                     {stepTotal > 0 && (
-                      <div style={{ marginBottom: 12 }}>
+                      <div>
                         {subHead("Step Reached (" + stepTotal + ")")}
                         {[1, 2, 3, 4].map(n => barRow(String(n), stepFreq[n], stepTotal, G.gold))}
-                      </div>
-                    )}
-                    {handTotal > 0 && (
-                      <div style={{ marginBottom: 12 }}>
-                        {subHead("Hand Position (" + handTotal + ")")}
-                        {barRow("High", handFreq.high, handTotal, "#ff9933")}
-                        {barRow("Mid", handFreq.mid, handTotal, G.gold)}
-                        {barRow("Low", handFreq.low, handTotal, G.blu)}
-                      </div>
-                    )}
-                    {pksWith1B.length > 0 && (
-                      <div>
-                        {subHead("On Pickoff Attempts (" + pksWith1B.length + ")")}
-                        {Object.entries(pkMoveFreq).length > 0 && (
-                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
-                            {Object.entries(pkMoveFreq).sort((a,b) => b[1]-a[1]).map(([m, c]) => (
-                              <div key={m} style={{ background: G.sf2, border: "1px solid " + G.bd, borderRadius: 7, padding: "6px 10px", textAlign: "center" }}>
-                                <div style={{ fontSize: 9, color: G.tx3, fontWeight: 800, letterSpacing: 0.8, textTransform: "uppercase" }}>{m}</div>
-                                <div style={{ fontSize: 14, fontWeight: 800, color: G.gold, fontFamily: "'Azeret Mono',monospace", marginTop: 2 }}>{c}x</div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {Object.entries(pkStepFreq).length > 0 && (
-                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                            {Object.entries(pkStepFreq).sort((a,b) => parseInt(a[0])-parseInt(b[0])).map(([s, c]) => (
-                              <div key={s} style={{ background: G.sf2, border: "1px solid " + G.bd, borderRadius: 7, padding: "6px 10px", textAlign: "center" }}>
-                                <div style={{ fontSize: 9, color: G.tx3, fontWeight: 800, letterSpacing: 0.8, textTransform: "uppercase" }}>Step {s}</div>
-                                <div style={{ fontSize: 14, fontWeight: 800, color: G.gold, fontFamily: "'Azeret Mono',monospace", marginTop: 2 }}>{c}x</div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>
