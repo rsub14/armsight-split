@@ -1,4 +1,3 @@
-
 function Hitting({ games = [], activeGame = null }) {
   // ── SCOPE (shared cascade: Hand → Teams → Games → Pitchers) ──
   // Pregame-scouted games are excluded: a pregame pitcher faced a different lineup.
@@ -13,6 +12,7 @@ function Hitting({ games = [], activeGame = null }) {
   const [popF, setPopF] = useState({ pitch: "All", count: "All", outs: "All", run: "All" });
   const [popMetric, setPopMetric] = useState("hh");
   const [showKey, setShowKey] = useState(false);
+  const [showPrint, setShowPrint] = useState(false);
 
   const allABs = useMemo(() => {
     const abs = buildAtBats(scope.scopedGames);
@@ -238,6 +238,24 @@ function Hitting({ games = [], activeGame = null }) {
     </div>
   );
 
+  // ── Print report data (mirrors the on-screen table: QAB overall; HH/Whiff/Chase/Take reflect filters) ──
+  const printRows = sortedRows.map(row => ({
+    name: row.name,
+    qab: cols[1].fmt(cols[1].val(row.abs)),
+    hh: cols[2].fmt(cols[2].val(row.abs)),
+    whiff: cols[3].fmt(cols[3].val(row.abs)),
+    chase: cols[4].fmt(cols[4].val(row.abs)),
+    take: cols[5].fmt(cols[5].val(row.abs)),
+  }));
+  const printFilterBits = [];
+  if (fPitch !== "All") printFilterBits.push(fPitch);
+  if (fCount !== "All") printFilterBits.push(fCount);
+  if (fOuts !== "All") printFilterBits.push(fOuts + (fOuts === "1" ? " out" : " outs"));
+  if (fRun !== "All") printFilterBits.push(fRun);
+  const printFilterNote = printFilterBits.length
+    ? "HH / Whiff / Chase / Take reflect filters: " + printFilterBits.join(" \u00B7 ") + " (QAB is overall)"
+    : "";
+
   return (
     <div>
       <ScopeBar scope={scope} />
@@ -245,7 +263,10 @@ function Hitting({ games = [], activeGame = null }) {
       <div style={cd}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
           <div style={cT}>Hitters — {hitterNames.length} batters</div>
-          <button onClick={() => setShowKey(k => !k)} title="What the columns mean" style={{ ...btn("g"), fontSize: 11, padding: "5px 9px", color: G.tx3 }}>{showKey ? "Hide key" : "Key"}</button>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <button onClick={() => setShowPrint(true)} style={{ padding: "5px 12px", background: "transparent", border: "1px solid " + G.bd2, borderRadius: 6, color: G.tx3, fontSize: 10, fontWeight: 800, cursor: "pointer", fontFamily: "'Azeret Mono',monospace", letterSpacing: 1 }}>Print Report</button>
+            <button onClick={() => setShowKey(k => !k)} title="What the columns mean" style={{ ...btn("g"), fontSize: 11, padding: "5px 9px", color: G.tx3 }}>{showKey ? "Hide key" : "Key"}</button>
+          </div>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
@@ -330,6 +351,21 @@ function Hitting({ games = [], activeGame = null }) {
           </div>
         );
       })()}
+
+      {showPrint && (
+        <PrintReport
+          type="hitting"
+          data={{
+            team: scope.teams.size === 0 ? "All Teams" : Array.from(scope.teams).join(", "),
+            batters: hitterNames.length,
+            teamQAB: cols[1].fmt(cols[1].val(allABs)),
+            teamHH: cols[2].fmt(cols[2].val(allABs)),
+            filterNote: printFilterNote,
+            rows: printRows,
+          }}
+          onClose={() => setShowPrint(false)}
+        />
+      )}
     </div>
   );
 }
