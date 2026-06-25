@@ -70,9 +70,9 @@ function HittingLog({ game, onUpdate, onClose }) {
 
   return (
     <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.75)", zIndex: 1000, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 20, overflowY: "auto" }}>
-      <div style={{ background: G.sf, border: "1px solid " + G.bd, borderRadius: 12, padding: 20, width: "100%", maxWidth: 680, margin: "12px 0" }}>
+      <div style={{ background: G.sf, border: "1px solid " + G.bd, borderRadius: 12, padding: 20, width: "100%", maxWidth: 680, margin: "12px 0", boxShadow: "0 4px 24px rgba(0,0,0,0.7)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-          <div style={{ fontSize: 15, fontWeight: 800, color: G.tx }}>⚾ Log Hitting — vs {game.opponent}</div>
+          <div style={{ fontSize: 15, fontWeight: 800, color: G.tx }}>Log Hitting — vs {game.opponent}</div>
           <button onClick={onClose} style={{ ...btn("g"), fontSize: 12, padding: "6px 10px" }}>Close</button>
         </div>
         <div style={{ fontSize: 11, color: G.tx3, marginBottom: 14 }}>Auto-detected QABs are marked. Tag the rest, and rename any at-bat for a pinch hitter.</div>
@@ -81,9 +81,9 @@ function HittingLog({ game, onUpdate, onClose }) {
         ) : (
           <>
             <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-              <div style={{ flex: 1, background: G.sf2, borderRadius: 8, padding: "8px 12px" }}><div style={{ fontSize: 10, color: G.tx3 }}>Team QAB</div><div style={{ fontSize: 18, fontWeight: 800, color: G.gold }}>{qabCount} / {totalAB}</div></div>
-              <div style={{ flex: 1, background: G.sf2, borderRadius: 8, padding: "8px 12px" }}><div style={{ fontSize: 10, color: G.tx3 }}>QAB avg</div><div style={{ fontSize: 18, fontWeight: 800, color: G.gold }}>{fmtAvg(qabCount, totalAB)}</div></div>
-              <div style={{ flex: 1, background: G.sf2, borderRadius: 8, padding: "8px 12px" }}><div style={{ fontSize: 10, color: G.tx3 }}>Hard hit</div><div style={{ fontSize: 18, fontWeight: 800, color: G.gold }}>{hhCount}</div></div>
+              <div style={{ flex: 1, background: G.sf2, borderRadius: 8, padding: "10px 12px" }}><div style={{ fontSize: 10, fontWeight: 800, color: G.tx3, textTransform: "uppercase", letterSpacing: 1 }}>Team QAB</div><div style={{ fontSize: 18, fontWeight: 800, color: G.gold, marginTop: 4 }}>{qabCount} / {totalAB}</div></div>
+              <div style={{ flex: 1, background: G.sf2, borderRadius: 8, padding: "10px 12px" }}><div style={{ fontSize: 10, fontWeight: 800, color: G.tx3, textTransform: "uppercase", letterSpacing: 1 }}>QAB avg</div><div style={{ fontSize: 18, fontWeight: 800, color: G.gold, marginTop: 4 }}>{fmtAvg(qabCount, totalAB)}</div></div>
+              <div style={{ flex: 1, background: G.sf2, borderRadius: 8, padding: "10px 12px" }}><div style={{ fontSize: 10, fontWeight: 800, color: G.tx3, textTransform: "uppercase", letterSpacing: 1 }}>Hard hit</div><div style={{ fontSize: 18, fontWeight: 800, color: G.gold, marginTop: 4 }}>{hhCount}</div></div>
             </div>
             {abs.map((ab) => {
               const id = ab.lastPitch.id;
@@ -91,7 +91,7 @@ function HittingLog({ game, onUpdate, onClose }) {
               const auto = autoQAB(ab);
               const anyTag = Object.values(effTags(ab)).some(Boolean);
               return (
-                <div key={id} style={{ background: G.sf2, border: "1px solid " + G.bd, borderRadius: 8, padding: "10px 12px", marginBottom: 8 }}>
+                <div key={id} style={{ background: G.sf2, border: "1px solid " + G.bd2, borderRadius: 8, padding: "12px 14px", marginBottom: 8 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       <span style={{ color: G.tx3, fontSize: 12, fontFamily: "'Azeret Mono',monospace" }}>#{ab.slot}</span>
@@ -104,7 +104,7 @@ function HittingLog({ game, onUpdate, onClose }) {
                     {TAGS.map(t => {
                       const on = !!effTags(ab)[t.k];
                       return (
-                        <button key={t.k} onClick={() => toggleTag(id, t.k)} style={{ fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 6, cursor: "pointer", background: on ? G.gold + "30" : "transparent", color: on ? G.gold : G.tx3, border: "1px solid " + (on ? G.gold : G.bd2) }}>{t.l}</button>
+                        <button key={t.k} onClick={() => toggleTag(id, t.k)} style={{ fontSize: 11, fontWeight: 700, padding: "5px 11px", borderRadius: 6, cursor: "pointer", background: on ? G.gold + "22" : "transparent", color: on ? G.gold : G.tx3, border: "1px solid " + (on ? G.gold + "88" : G.bd2), transition: "background 0.1s, color 0.1s, border-color 0.1s" }}>{t.l}</button>
                       );
                     })}
                   </div>
