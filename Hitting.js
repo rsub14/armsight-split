@@ -1,4 +1,4 @@
-function Hitting({ games = [], activeGame = null }) {
+function Hitting({ games = [], activeGame = null, onDeleteHitter }) {
   // ── SCOPE (shared cascade: Hand → Teams → Games → Pitchers) ──
   // Pregame-scouted games are excluded: a pregame pitcher faced a different lineup.
   const scope = useScope(games, activeGame, { lockSource: "live" });
@@ -347,6 +347,22 @@ function Hitting({ games = [], activeGame = null }) {
               <div style={{ fontSize: 10, color: G.tx3, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 8 }}>{({ hh: "Hard-hit avg", whiff: "Whiff %", chase: "Chase %", take: "Take %" })[popMetric]} by zone{popActive ? " (filtered)" : ""}</div>
               <div style={{ marginBottom: 12 }}>{filterRow(popF, (k, v) => setPopF(f => ({ ...f, [k]: v })))}</div>
               {popMetric === "hh" ? renderHeat(popAbs) : renderDiscHeat(abs, popMetric, popF)}
+              {onDeleteHitter && (
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid " + G.bd2, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <div style={{ fontSize: 10, color: G.tx3, lineHeight: 1.5, flex: 1, minWidth: 170 }}>Removes {popName} from your roster and clears their hitting stats. Their pitches are kept, so opposing pitcher data is preserved.</div>
+                  <button
+                    onClick={() => {
+                      const rosterIds = [...new Set(abs.flatMap(a => a.pitches.map(p => p.rosterId)).filter(x => x != null))];
+                      if (window.confirm("This removes " + popName + "'s hitting stats. Their pitches are kept so opposing pitcher data is preserved. Continue?")) {
+                        onDeleteHitter({ name: popName, rosterIds });
+                        setPopName(null);
+                      }
+                    }}
+                    style={{ ...btn("g"), fontSize: 12, padding: "7px 14px", color: G.red, border: "1px solid " + G.red + "55", flexShrink: 0 }}>
+                    Delete hitter
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         );
