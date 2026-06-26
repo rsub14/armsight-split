@@ -38,6 +38,14 @@ function App() {
     } catch (e) { console.warn("[ArmSight] cloudMetaSave failed:", e); }
   };
 
+  // Single source of truth for persisting the team roster: local save + cloud meta-save
+  // (Elite). Used by RosterManager and by the in-lineup "add new hitter" flow in NewG.
+  const saveRoster = (r) => {
+    const nd = { ...data, roster: r, metaUpdatedAt: Date.now() };
+    doSave(nd);
+    cloudMetaSave(nd);
+  };
+
   // Save, edit or delete a scouting note for a team
   const saveNote = (team, text, id = null, del = false) => {
     const notes = { ...(data.scoutingNotes || {}) };
@@ -278,7 +286,7 @@ function App() {
   return (
     <div style={{ minHeight: "100vh", background: G.bg, color: G.tx, fontFamily: "'Anybody',sans-serif" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Anybody:wght@400;500;600;700;800&family=Azeret+Mono:wght@400;500;700&display=swap');*{box-sizing:border-box;margin:0;padding:0}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:${G.bd2};border-radius:3px}select option{background:#000;color:#fff}button{-webkit-tap-highlight-color:transparent}@media(hover:hover){button:hover{filter:brightness(1.15)}}`}</style>
-      {showRoster && <RosterManager roster={data.roster || []} onClose={() => setShowRoster(false)} onSave={(r) => { const nd = { ...data, roster: r, metaUpdatedAt: Date.now() }; doSave(nd); cloudMetaSave(nd); }} />}
+      {showRoster && <RosterManager roster={data.roster || []} onClose={() => setShowRoster(false)} onSave={saveRoster} />}
       {showSettings && <SettingsPanel licKey={licKey} tier={tier} onClose={() => setShowSettings(false)} onManageRoster={() => { setShowSettings(false); setShowRoster(true); }}
         onClearKey={() => { clearLicense(); setLicKey(null); setTier(null); setShowSettings(false); handleFbSignOut(); }}
         fbUser={fbUser} onFbSignOut={handleFbSignOut} onShowFbAuth={() => { setShowSettings(false); setShowFbAuth(true); }}
@@ -335,7 +343,7 @@ function App() {
       </header>
       <main style={{ maxWidth: 920, margin: "0 auto", padding: 16 }}>
         {tab === "games" && !showNew && <GList games={data.games.filter(g => g.status !== "complete")} onSelect={id => { if (id !== activeId) { const g = data.games.find(x => x.id === id); setChartState(g ? deriveStateFromGame(g) : { ...CHART_DEFAULTS }); } setActiveId(id); setTab("chart"); }} onCreate={() => setShowNew(true)} onDelete={del} onExport={exportGame} onExportCSV={exportGameCSV} onImport={importCSV} warnNoBackup={!(tier === "elite" && fbUser)} />}
-        {tab === "games" && showNew && <NewG onSave={create} onCancel={() => setShowNew(false)} allGames={data.games} roster={data.roster || []} />}
+        {tab === "games" && showNew && <NewG onSave={create} onCancel={() => setShowNew(false)} allGames={data.games} roster={data.roster || []} onSaveRoster={saveRoster} />}
         {tab === "chart" && active && <ChartGame game={active} onUpdate={update} onBack={() => setTab("games")} chartState={chartState} onChartState={setChartState} tier={tier} allGames={data.games} scoutingNotes={data.scoutingNotes || {}} onSaveNote={saveNote} prefs={data.prefs || {}} roster={data.roster || []} />}
         {tab === "tendencies" && <PitchingTendencies games={data.games} tier={tier} activeGame={active} activePitcher={chartState.curP || (active && active.pitcher) || null} scoutingNotes={data.scoutingNotes || {}} onSaveNote={saveNote} roster={data.roster || []} />}
         {tab === "baserunning" && <CountBD games={data.games} allGames={data.games} tier={tier} activeGame={active} activePitcher={chartState.curP || (active && active.pitcher) || null} section="baserunning" roster={data.roster || []} />}
