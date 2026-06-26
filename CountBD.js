@@ -190,6 +190,63 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
   filtered.forEach(p => { if (p.location && zoneCounts[p.location] !== undefined) zoneCounts[p.location]++; });
   const maxZonePct = Math.max(...Object.values(zoneCounts).map(c => total > 0 ? (c / total) * 100 : 0), 1);
 
+  // ── BASERUNNING PRINT SUMMARY (full scope; on-screen chip filters not applied) ──
+  const brActive = filterEvents.size > 0 || filterBases.size > 0 || filterCounts.size > 0 || filterOuts.size > 0;
+  const brPrintData = section === "baserunning" ? (() => {
+    const evLabels = { SB: "Stolen Bases", CS: "Caught Stealing", WP: "Wild Pitches", PB: "Passed Balls" };
+    const precedingOf = (ev) => {
+      const idx = rawPool.findIndex(p => p.id === ev.id);
+      for (let i = idx - 1; i >= 0; i--) { if (!EVENTS.has(rawPool[i].type)) return rawPool[i]; }
+      return null;
+    };
+    const events = ["SB", "CS", "WP", "PB"].map(t => {
+      const rows = rawPool.filter(p => p.type === t && !p._pg);
+      if (!rows.length) return null;
+      const freq = {};
+      rows.forEach(ev => { const pp = precedingOf(ev); if (pp) freq[pp.type] = (freq[pp.type] || 0) + 1; });
+      const top = Object.entries(freq).sort((a, b) => b[1] - a[1])[0];
+      return { label: evLabels[t], total: rows.length, topPitch: top ? top[0] : null };
+    }).filter(Boolean);
+
+    const PK_TYPES = { PKO: true, PK: true, "PK-E": true };
+    const pks = rawPool.filter(p => PK_TYPES[p.type] && !p._pg);
+    const outcomeOf = (p) => p.type === "PK-E" ? "error" : (p.type === "PKO" || p.pkoOut || p.result === "pk-out") ? "out" : "safe";
+    let pOut = 0, pSafe = 0, pErr = 0;
+    pks.forEach(p => { const o = outcomeOf(p); if (o === "out") pOut++; else if (o === "safe") pSafe++; else pErr++; });
+    const baseLbl = { first: "1B", second: "2B", third: "3B", none: "—" };
+    const byBaseMap = {};
+    pks.forEach(p => { const b = p.pkoBase || "none"; if (!byBaseMap[b]) byBaseMap[b] = { base: baseLbl[b] || b, total: 0, out: 0, safe: 0, error: 0 }; byBaseMap[b].total++; byBaseMap[b][outcomeOf(p)]++; });
+    const byBase = ["first", "second", "third", "none"].filter(b => byBaseMap[b]).map(b => byBaseMap[b]);
+
+    const freqRows = (pool, pick, labelOf, order) => {
+      const f = {};
+      pool.forEach(p => { const v = pick(p); if (v !== null && v !== undefined && v !== false && v !== "") f[v] = (f[v] || 0) + 1; });
+      let keys = Object.keys(f);
+      keys = order ? order.filter(k => f[String(k)] !== undefined).map(String) : keys.sort();
+      return keys.map(k => ({ label: labelOf(k), count: f[k] }));
+    };
+    const brPool1B = scopedGames.flatMap(g => g.pitches.filter(p => scope.inScope(p, g) && p.brRead && (p.brRead.move1B || p.brRead.step1B || p.brRead.handPos1B)));
+    const brPool2B = scopedGames.flatMap(g => g.pitches.filter(p => scope.inScope(p, g) && p.brRead && p.brRead.looks2B !== null && p.brRead.looks2B !== undefined));
+    const brPool2Bmove = scopedGames.flatMap(g => g.pitches.filter(p => scope.inScope(p, g) && p.brRead && p.brRead.move2B));
+    const moveLbl = { quick: "Quick", best: "Best", show: "Show" };
+    const handLbl = { high: "High", mid: "Mid", low: "Low" };
+    const move2BLbl = { inside: "Inside", spin: "Spin" };
+    const lookLbl = { 0: "0 Looks", 1: "1 Look", 2: "2 Looks", 3: "3+ Looks" };
+
+    return {
+      team: scope.teams.size === 0 ? "All Teams" : Array.from(scope.teams).join(", "),
+      pitcher: scope.pitchers.size === 0 ? "all" : (scope.pitchers.size === 1 ? ((scope.availablePitchers.find(tp => scope.pitchers.has(tp.key)) || {}).label || Array.from(scope.pitchers)[0]) : (scope.pitchers.size + " pitchers")),
+      events,
+      pickoffs: { total: pks.length, out: pOut, safe: pSafe, error: pErr, byBase },
+      move1B: freqRows(brPool1B, p => p.brRead.move1B, k => moveLbl[k] || k, ["quick", "best", "show"]),
+      step1B: freqRows(brPool1B, p => p.brRead.step1B, k => "Step " + k, ["1", "2", "3", "4", "5"]),
+      hand1B: freqRows(brPool1B, p => p.brRead.handPos1B, k => handLbl[k] || k, ["high", "mid", "low"]),
+      looks2B: freqRows(brPool2B, p => Math.min(p.brRead.looks2B, 3), k => lookLbl[k] || k, ["0", "1", "2", "3"]),
+      move2B: freqRows(brPool2Bmove, p => p.brRead.move2B, k => move2BLbl[k] || k, ["inside", "spin"]),
+      filterNote: brActive ? "Full baserunning summary for this team/pitcher — the on-screen filters are not applied to this report." : "",
+    };
+  })() : null;
+
   const zoneColor = (count) => {
     if (count === 0 || total === 0) return "transparent";
     const pct = (count / total) * 100;
@@ -423,7 +480,13 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
         </div>
       </div>}
 
-      {showPrint && (
+      {showPrint && (section === "baserunning" ? (
+        <PrintReport
+          type="baserunning"
+          data={brPrintData}
+          onClose={() => setShowPrint(false)}
+        />
+      ) : (
         <PrintReport
           type="situations"
           data={{
@@ -454,7 +517,7 @@ function CountBD({ games, allGames, tier, activeGame, activePitcher, section = "
           }}
           onClose={() => setShowPrint(false)}
         />
-      )}
+      ))}
 
       {/* Ball/Strike totals */}
       {(() => {
