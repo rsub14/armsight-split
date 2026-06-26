@@ -1,5 +1,5 @@
 /* --- NEW GAME --- */
-function NewG({ onSave, onCancel, allGames = [], roster = [] }) {
+function NewG({ onSave, onCancel, allGames = [], roster = [], onSaveRoster }) {
   const [opp, setOpp] = useState("");
   const [team, setTeam] = useState(() => { const prev = [...allGames].reverse().find(g => g.team); return prev ? prev.team : ""; });
   const [pit, setPit] = useState("");
@@ -11,6 +11,22 @@ function NewG({ onSave, onCancel, allGames = [], roster = [] }) {
   );
   // Assign a roster player into a slot (fills name + bats), or clear it
   const assignPlayer = (slotIdx, player) => setLineup(prev => prev.map((s, idx) => idx === slotIdx ? (player ? { slot: idx + 1, name: player.name, num: player.num || "", bats: player.bats, hand: player.bats === "L" ? "L" : "R", rosterId: player.id } : { slot: idx + 1, name: "", hand: "R", bats: "R" }) : s));
+
+  // Inline "add a brand-new hitter" while building the lineup. The player is saved into
+  // the team roster (same path as RosterManager) AND dropped into the current slot with a
+  // stable rosterId so their pitches stamp + aggregate under the per-player filter.
+  const [addSlot, setAddSlot] = useState(null);
+  const [npNum, setNpNum] = useState("");
+  const [npName, setNpName] = useState("");
+  const [npBats, setNpBats] = useState("R");
+  const resetAdd = () => { setAddSlot(null); setNpNum(""); setNpName(""); setNpBats("R"); };
+  const addNewPlayer = () => {
+    if (!npName.trim() || addSlot === null) return;
+    const newPlayer = { id: Date.now() + Math.random(), num: npNum.trim(), name: npName.trim(), bats: npBats };
+    if (onSaveRoster) onSaveRoster([...roster, newPlayer]);
+    assignPlayer(addSlot, newPlayer);
+    resetAdd();
+  };
   const is = { background: G.sf2, border: "2px solid " + G.bd2, borderRadius: 6, padding: "8px 10px", color: G.tx, fontSize: 14, fontWeight: 700, outline: "none", width: "100%", boxSizing: "border-box" };
   const updLineup = (i, field, val) => setLineup(prev => prev.map((s, idx) => idx === i ? { ...s, [field]: val, ...(field === "bats" ? { hand: val === "L" ? "L" : "R" } : {}) } : s));
 
@@ -162,22 +178,36 @@ function NewG({ onSave, onCancel, allGames = [], roster = [] }) {
                 <div style={{ fontSize: 10, color: G.tx3, marginBottom: 2 }}>Tip: add your players once in Settings → Manage Team Roster, then just pick them here each game.</div>
               )}
               {lineup.map((slot, i) => (
-                <div key={i} style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                  <div style={{ width: 20, fontSize: 13, fontWeight: 800, color: G.gold, fontFamily: "'Azeret Mono',monospace", textAlign: "right", flexShrink: 0 }}>{slot.slot}</div>
-                  {roster.length > 0 ? (
-                    <select value={slot.rosterId || ""} onChange={e => { const pl = roster.find(p => String(p.id) === e.target.value); assignPlayer(i, pl || null); }}
-                      style={{ ...is, fontSize: 13, padding: "6px 8px", flex: 1 }}>
-                      <option value="">— select —</option>
-                      {[...roster].sort((a, b) => (parseInt(a.num) || 99) - (parseInt(b.num) || 99)).map(p => (
-                        <option key={p.id} value={p.id}>{(p.num ? "#" + p.num + " " : "") + p.name + " (" + p.bats + ")"}</option>
+                <div key={i}>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <div style={{ width: 20, fontSize: 13, fontWeight: 800, color: G.gold, fontFamily: "'Azeret Mono',monospace", textAlign: "right", flexShrink: 0 }}>{slot.slot}</div>
+                    {roster.length > 0 ? (
+                      <select value={slot.rosterId || ""} onChange={e => { if (e.target.value === "__add__") { setNpNum(""); setNpName(""); setNpBats(slot.bats || "R"); setAddSlot(i); return; } const pl = roster.find(p => String(p.id) === e.target.value); assignPlayer(i, pl || null); }}
+                        style={{ ...is, fontSize: 13, padding: "6px 8px", flex: 1 }}>
+                        <option value="">— select —</option>
+                        {[...roster].sort((a, b) => (parseInt(a.num) || 99) - (parseInt(b.num) || 99)).map(p => (
+                          <option key={p.id} value={p.id}>{(p.num ? "#" + p.num + " " : "") + p.name + " (" + p.bats + ")"}</option>
+                        ))}
+                        <option value="__add__">+ Add new hitter…</option>
+                      </select>
+                    ) : (
+                      <input value={slot.name} onChange={e => updLineup(i, "name", e.target.value)} placeholder={`Batter ${slot.slot}`} style={{ ...is, fontSize: 13, padding: "6px 8px", flex: 1 }} />
+                    )}
+                    {["R", "L", "B"].map(h => (
+                      <button key={h} onClick={() => updLineup(i, "bats", h)} title={h === "B" ? "Switch hitter \u2014 bats opposite the pitcher automatically" : ""} style={{ padding: "6px 10px", borderRadius: 5, border: "none", background: (slot.bats || slot.hand) === h ? G.gold : G.sf2, color: (slot.bats || slot.hand) === h ? "#000" : G.tx2, fontSize: 12, fontWeight: 800, cursor: "pointer", flexShrink: 0 }}>{h}</button>
+                    ))}
+                  </div>
+                  {addSlot === i && (
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginTop: 6, marginLeft: 26, padding: "8px 10px", background: G.sf2, border: "1px solid " + G.gold + "55", borderRadius: 8 }}>
+                      <input value={npNum} onChange={e => setNpNum(e.target.value)} placeholder="#" style={{ ...is, width: 42, textAlign: "center", fontSize: 13, padding: "6px 8px", flex: "0 0 auto" }} />
+                      <input value={npName} onChange={e => setNpName(e.target.value)} autoFocus placeholder="New hitter name" onKeyDown={e => { if (e.key === "Enter") addNewPlayer(); }} style={{ ...is, fontSize: 13, padding: "6px 8px", flex: 1, minWidth: 110 }} />
+                      {["R", "L", "B"].map(h => (
+                        <button key={h} onClick={() => setNpBats(h)} title={h === "B" ? "Switch hitter" : ""} style={{ padding: "6px 10px", borderRadius: 5, border: "none", background: npBats === h ? G.gold : G.sf, color: npBats === h ? "#000" : G.tx2, fontSize: 12, fontWeight: 800, cursor: "pointer", flexShrink: 0 }}>{h}</button>
                       ))}
-                    </select>
-                  ) : (
-                    <input value={slot.name} onChange={e => updLineup(i, "name", e.target.value)} placeholder={`Batter ${slot.slot}`} style={{ ...is, fontSize: 13, padding: "6px 8px", flex: 1 }} />
+                      <button onClick={addNewPlayer} style={{ ...btn("g"), padding: "6px 12px", color: G.grn, fontWeight: 800, fontSize: 12 }}>Add</button>
+                      <button onClick={resetAdd} style={{ ...btn("g"), padding: "6px 10px", color: G.tx3, fontSize: 12 }}>Cancel</button>
+                    </div>
                   )}
-                  {["R", "L", "B"].map(h => (
-                    <button key={h} onClick={() => updLineup(i, "bats", h)} title={h === "B" ? "Switch hitter \u2014 bats opposite the pitcher automatically" : ""} style={{ padding: "6px 10px", borderRadius: 5, border: "none", background: (slot.bats || slot.hand) === h ? G.gold : G.sf2, color: (slot.bats || slot.hand) === h ? "#000" : G.tx2, fontSize: 12, fontWeight: 800, cursor: "pointer", flexShrink: 0 }}>{h}</button>
-                  ))}
                 </div>
               ))}
             </div>
