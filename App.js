@@ -46,6 +46,74 @@ function App() {
     cloudMetaSave(nd);
   };
 
+  // Delete a hitter's IDENTITY without touching pitch data. We clear the hitter stamps
+  // (rosterId / batterName / hitter) on the player's pitches AND blank their lineup-slot
+  // name/rosterId in every affected game, then remove them from the roster. Every other
+  // pitch field (type, location, count, result, pitcher, batSide, ...) is preserved, so
+  // opposing-pitcher scouting is byte-for-byte unchanged. NEVER deletes pitch records.
+  // target: { name: string, rosterIds: array }
+  const deleteHitter = (target) => {
+    const nameLc = (target && target.name ? target.name : "").trim().toLowerCase();
+    const ridSet = new Set((target && target.rosterIds ? target.rosterIds : []).map(String));
+    if (!nameLc && ridSet.size === 0) return;
+
+    const slotMatches = (s) =>
+      !!s && ((s.rosterId != null && ridSet.has(String(s.rosterId))) ||
+              (!!s.name && s.name.trim().toLowerCase() === nameLc));
+    const pitchMatches = (p, g) => {
+      if (p.rosterId != null && ridSet.has(String(p.rosterId))) return true;
+      if (p.batterName && p.batterName.trim().toLowerCase() === nameLc) return true;
+      if (p.hitter && p.hitter.trim().toLowerCase() === nameLc) return true;
+      // Older un-stamped pitch: resolve via this game's lineup slot (batOrder)
+      if (p.rosterId == null && !p.batterName && !p.hitter && p.batOrder != null) {
+        const s = (g.lineup || []).find(x => x.slot === p.batOrder);
+        if (slotMatches(s)) return true;
+      }
+      return false;
+    };
+
+    const changedGames = [];
+    const newGames = (data.games || []).map(g => {
+      let changed = false;
+      const pitches = (g.pitches || []).map(p => {
+        if ((p.rosterId != null || p.batterName != null || p.hitter != null) && pitchMatches(p, g)) {
+          const np = { ...p };
+          delete np.rosterId; delete np.batterName; delete np.hitter;
+          changed = true;
+          return np;
+        }
+        return p;
+      });
+      let lineup = g.lineup;
+      if (Array.isArray(g.lineup) && g.lineup.some(slotMatches)) {
+        lineup = g.lineup.map(s => {
+          if (!slotMatches(s)) return s;
+          const ns = { ...s, name: "" };
+          delete ns.rosterId;
+          return ns;
+        });
+        changed = true;
+      }
+      if (changed) {
+        const ng = { ...g, pitches, lineup, updatedAt: Date.now() };
+        changedGames.push(ng);
+        return ng;
+      }
+      return g;
+    });
+
+    const newRoster = (data.roster || []).filter(rp =>
+      !(ridSet.has(String(rp.id)) || (rp.name && rp.name.trim().toLowerCase() === nameLc))
+    );
+
+    const nd = { ...data, roster: newRoster, games: newGames, metaUpdatedAt: Date.now() };
+    doSave(nd);
+    if (tier === "elite" && fbUser) {
+      cloudMetaSave(nd);
+      changedGames.forEach(g => fbSaveGame(fbUser.uid, g));
+    }
+  };
+
   // Save, edit or delete a scouting note for a team
   const saveNote = (team, text, id = null, del = false) => {
     const notes = { ...(data.scoutingNotes || {}) };
@@ -347,7 +415,7 @@ function App() {
         {tab === "chart" && active && <ChartGame game={active} onUpdate={update} onBack={() => setTab("games")} chartState={chartState} onChartState={setChartState} tier={tier} allGames={data.games} scoutingNotes={data.scoutingNotes || {}} onSaveNote={saveNote} prefs={data.prefs || {}} roster={data.roster || []} />}
         {tab === "tendencies" && <PitchingTendencies games={data.games} tier={tier} activeGame={active} activePitcher={chartState.curP || (active && active.pitcher) || null} scoutingNotes={data.scoutingNotes || {}} onSaveNote={saveNote} roster={data.roster || []} />}
         {tab === "baserunning" && <CountBD games={data.games} allGames={data.games} tier={tier} activeGame={active} activePitcher={chartState.curP || (active && active.pitcher) || null} section="baserunning" roster={data.roster || []} />}
-        {tab === "hitting" && <Hitting games={data.games} activeGame={active} />}
+        {tab === "hitting" && <Hitting games={data.games} activeGame={active} onDeleteHitter={deleteHitter} />}
         {tab === "library" && <GList games={data.games.filter(g => g.status === "complete")} title="Completed Games" onSelect={id => { if (id !== activeId) { const g = data.games.find(x => x.id === id); setChartState(g ? deriveStateFromGame(g) : { ...CHART_DEFAULTS }); } setActiveId(id); setTab("chart"); }} onDelete={del} onExport={exportGame} onExportCSV={exportGameCSV} />}
       </main>
     </div>
