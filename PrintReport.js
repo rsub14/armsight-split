@@ -167,20 +167,90 @@ function PrintReport({ type, data, onClose }) {
       + '</tbody></table>';
   };
 
+  const buildBaserunningHTML = () => {
+    const d = data;
+    const events = d.events || [];
+    const pk = d.pickoffs || { total: 0 };
+    const hasAny = events.length || pk.total
+      || (d.move1B && d.move1B.length) || (d.step1B && d.step1B.length) || (d.hand1B && d.hand1B.length)
+      || (d.move2B && d.move2B.length) || (d.looks2B && d.looks2B.length);
+    if (!hasAny) return "<p>No baserunning data in this scope.</p>";
+
+    const bars = (items) => {
+      if (!items || !items.length) return "<em style='color:#aaa;font-size:11px'>No data</em>";
+      const max = Math.max.apply(null, items.map(function(i){return i.count;}).concat([1]));
+      const tot = items.reduce(function(a,b){return a + b.count;}, 0) || 1;
+      return items.map(function(i){
+        var pct = Math.round((i.count / tot) * 100);
+        return '<div class="br"><div class="bl" style="color:#555">' + i.label + '</div><div class="bt"><div class="bf" style="width:' + ((i.count / max) * 100) + '%;background:#D4A800"></div></div><div class="bp">' + i.count + ' (' + pct + '%)</div></div>';
+      }).join("");
+    };
+    const subLabel = (txt) => '<div style="font-size:10px;font-weight:700;color:#888;margin:6px 0 3px">' + txt + '</div>';
+
+    var tiles = '<div class="stat-row">';
+    events.forEach(function(e){ tiles += '<div class="stat"><div class="stat-n">' + e.total + '</div><div class="stat-l">' + e.label + '</div></div>'; });
+    if (pk.total) tiles += '<div class="stat"><div class="stat-n">' + pk.total + '</div><div class="stat-l">Pickoff Att</div></div>';
+    tiles += '</div>';
+
+    var eventsHTML = events.length
+      ? '<h2>Running Events</h2><table class="ct"><thead><tr><th style="text-align:left">Event</th><th>Count</th><th>Most On</th></tr></thead><tbody>'
+        + events.map(function(e){ return '<tr><td style="text-align:left;font-weight:700">' + e.label + '</td><td>' + e.total + '</td><td>' + (e.topPitch || '-') + '</td></tr>'; }).join("")
+        + '</tbody></table>'
+      : "";
+
+    var pkHTML = "";
+    if (pk.total) {
+      var pkSummary = '<div class="stat-row">'
+        + '<div class="stat"><div class="stat-n">' + pk.out + '</div><div class="stat-l">Out</div></div>'
+        + '<div class="stat"><div class="stat-n">' + pk.safe + '</div><div class="stat-l">Safe</div></div>'
+        + '<div class="stat"><div class="stat-n">' + pk.error + '</div><div class="stat-l">Error</div></div>'
+        + '</div>';
+      var pkBase = (pk.byBase && pk.byBase.length)
+        ? '<table class="ct"><thead><tr><th style="text-align:left">Base</th><th>Att</th><th>Out</th><th>Safe</th><th>Err</th></tr></thead><tbody>'
+          + pk.byBase.map(function(b){ return '<tr><td style="text-align:left;font-weight:700">' + b.base + '</td><td>' + b.total + '</td><td>' + b.out + '</td><td>' + b.safe + '</td><td>' + b.error + '</td></tr>'; }).join("")
+          + '</tbody></table>'
+        : "";
+      pkHTML = '<h2>Pickoffs</h2>' + pkSummary + pkBase;
+    }
+
+    var read1B = ((d.move1B && d.move1B.length) || (d.step1B && d.step1B.length) || (d.hand1B && d.hand1B.length))
+      ? '<div style="font-size:11px;font-weight:800;margin-bottom:4px">From 1B</div>'
+        + (d.move1B && d.move1B.length ? subLabel("Move Type") + bars(d.move1B) : "")
+        + (d.step1B && d.step1B.length ? subLabel("Step Reached") + bars(d.step1B) : "")
+        + (d.hand1B && d.hand1B.length ? subLabel("Hand Position") + bars(d.hand1B) : "")
+      : "";
+    var read2B = ((d.looks2B && d.looks2B.length) || (d.move2B && d.move2B.length))
+      ? '<div style="font-size:11px;font-weight:800;margin-bottom:4px">From 2B</div>'
+        + (d.looks2B && d.looks2B.length ? subLabel("Look Count") + bars(d.looks2B) : "")
+        + (d.move2B && d.move2B.length ? subLabel("Move Type") + bars(d.move2B) : "")
+      : "";
+    var readsHTML = (read1B || read2B)
+      ? '<h2>Pitcher Reads \u2014 Holding Runners</h2><div class="grid2"><div>' + read1B + '</div><div>' + read2B + '</div></div>'
+      : "";
+
+    return tiles
+      + (d.filterNote ? '<div style="background:#f9f9f9;border:1px solid #ddd;border-radius:6px;padding:8px 14px;margin:0 0 16px;font-size:10px;color:#888">' + d.filterNote + '</div>' : "")
+      + eventsHTML + pkHTML + readsHTML;
+  };
+
   const reportTitle = type === "library"
     ? (data.name + " \u2014 " + data.selTeam)
     : type === "hitting"
     ? (data.team + " \u2014 Hitting")
+    : type === "baserunning"
+    ? (data.team + " \u2014 Baserunning" + (data.pitcher && data.pitcher !== "all" ? " (" + data.pitcher + ")" : ""))
     : (data.team + (data.pitcher !== "all" ? " \u2014 " + data.pitcher : " \u2014 All Pitchers"));
 
   const reportSubtitle = type === "library"
     ? ("Library Report \u00B7 " + (data.isStaff ? "Staff Overview" : "Pitcher Profile"))
     : type === "hitting"
     ? "Hitting Report"
+    : type === "baserunning"
+    ? "Baserunning Report"
     : "Game Situations Report";
 
   const handlePrint = () => {
-    const bodyHTML = type === "library" ? buildLibraryHTML() : type === "hitting" ? buildHittingHTML() : buildSituationsHTML();
+    const bodyHTML = type === "library" ? buildLibraryHTML() : type === "hitting" ? buildHittingHTML() : type === "baserunning" ? buildBaserunningHTML() : buildSituationsHTML();
     const fullHTML = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>ArmSight Report</title><style>' + CSS + '</style></head><body>'
       + '<div class="hdr"><div><div class="logo"><span>ARM</span>SIGHT</div><div style="font-size:10px;color:#888;letter-spacing:2px;text-transform:uppercase;margin-top:2px">armsight.app</div></div>'
       + '<div class="hdr-r"><div class="rpt-title">' + reportTitle + '</div><div>' + reportSubtitle + '</div><div>' + printDate + '</div></div></div>'
